@@ -1,0 +1,85 @@
+{
+	"profile": {
+		"timezone": "America/New_York",
+		"workday": { "start": "09:00", "end": "18:00", "focusBlockMins": 90 },
+		"style": "concise"
+	},
+	"mvp": {
+		"mode": "development",
+		"phase": "1A",
+		"quickStart": true,
+		"enabledFeatures": ["calendar-read", "planning", "file-read"],
+		"skipApprovals": ["read-operations"],
+		"autoAcceptPlans": false,
+		"debugMode": true,
+		"maxContextTokens": 24000,
+		"phaseEnforcement": true,
+		"circuitBreakers": true,
+		"rateLimiting": true
+	},
+	"iteration": {
+		"collectFeedback": true,
+		"metricsEnabled": true,
+		"feedbackFrequency": "after_plan",
+		"performanceProfiling": true,
+		"errorReporting": "detailed"
+	},
+	"calendars": {
+		"google": { "enabled": true, "calendarIds": ["primary"], "readOnly": true },
+		"msgraph": { "enabled": false },
+		"ics": []
+	},
+	"agents": {
+		"plannerModel": "gpt-4o",
+		"plannerTemperature": 0.2,
+		"fallbackModel": "claude-3-5-sonnet",
+		"codexEnabled": false,
+		"conversationPatterns": {
+			"enabled": true,
+			"adaptResponseStyle": true
+		}
+	},
+	"contextManagement": {
+		"enablePruning": true,
+		"prioritizeRecent": true,
+		"maxHistoryDays": 30,
+		"intelligentSummarization": true
+	},
+	"mcp": {
+		"servers": [
+			{
+				"id": "local-fs",
+				"endpoint": "stdio",
+				"scopes": ["fs.read", "fs.list", "fs.search"]
+			}
+		],
+		"fsAllow": ["./fixtures/**", "./packages/**", "./docs/**"],
+		"fsDeny": ["./node_modules/**", "./.git/**", "./scripts/**"],
+		"commandPolicy": {
+			"allow": [],
+			"deny": ["rm", "del", "format", "mkfs", "sudo", "curl", "wget"],
+			"default": "block"
+		},
+		"rateLimits": {
+			"operationsPerMinute": 10,
+			"maxFileSize": "1MB",
+			"timeoutSeconds": 30
+		}
+	},
+	"keys": {
+		"openaiKeyRef": "env:OPENAI_API_KEY",
+		"googleKeyRef": "keychain:GOOGLE_OAUTH_REFRESH",
+		"msgraphKeyRef": "keychain:MSGRAPH_REFRESH"
+	},
+	"audit": {
+		"path": "./logs/audit.jsonl",
+		"hashing": true,
+		"includeMetrics": true,
+		"retentionDays": 90
+	},
+	"gracefulDegradation": {
+		"enableFallbacks": true,
+		"offlinePlanningMode": true,
+		"templateBasedBackup": true
+	}
+}

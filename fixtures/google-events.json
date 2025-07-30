@@ -1,0 +1,40 @@
+[
+	{
+		"id": "g-123",
+		"provider": "google",
+		"title": "Weekly Standup",
+		"description": "Team standup meeting",
+		"start": "2025-07-31T09:00:00-05:00",
+		"end": "2025-07-31T09:30:00-05:00",
+		"allDay": false,
+		"location": "Conference Room A",
+		"attendees": [
+			{ "email": "alice@example.com", "response": "yes" },
+			{ "email": "bob@example.com", "response": "maybe" }
+		],
+		"transparency": "busy",
+		"sensitivity": "normal"
+	},
+	{
+		"id": "g-124",
+		"provider": "google",
+		"title": "Catch-up with Sam",
+		"start": "2025-07-31T11:00:00-05:00",
+		"end": "2025-07-31T11:30:00-05:00",
+		"allDay": false,
+		"attendees": [{ "email": "sam@example.com" }],
+		"transparency": "busy",
+		"sensitivity": "normal"
+	},
+	{
+		"id": "g-125",
+		"provider": "google",
+		"title": "Deep Work Block",
+		"description": "Focus time for feature development",
+		"start": "2025-07-31T14:00:00-05:00",
+		"end": "2025-07-31T16:00:00-05:00",
+		"allDay": false,
+		"transparency": "busy",
+		"sensitivity": "normal"
+	}
+]

@@ -1,0 +1,18 @@
+[
+	{
+		"id": "mg-456",
+		"provider": "msgraph",
+		"title": "Client Review Meeting",
+		"description": "Quarterly review with key client",
+		"start": "2025-07-31T10:00:00-05:00",
+		"end": "2025-07-31T11:00:00-05:00",
+		"allDay": false,
+		"location": "Teams Meeting",
+		"attendees": [
+			{ "email": "client@example.com", "response": "yes" },
+			{ "email": "manager@example.com", "response": "yes" }
+		],
+		"transparency": "busy",
+		"sensitivity": "confidential"
+	}
+]

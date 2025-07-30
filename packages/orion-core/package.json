@@ -1,0 +1,27 @@
+{
+	"name": "@orion/core",
+	"version": "1.0.0",
+	"description": "Core orchestration and conversation loop for Orion",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest",
+		"lint": "echo 'Linting not yet configured'"
+	},
+	"dependencies": {
+		"@openai/agents": "^0.0.14",
+		"openai": "^4.50.0",
+		"@orion/planner-llm": "file:../planner-llm",
+		"@orion/calendar-parser": "file:../calendar-parser",
+		"@orion/mcp-client": "file:../mcp-client",
+		"@orion/command-router": "file:../command-router"
+	},
+	"devDependencies": {
+		"typescript": "^5.3.0",
+		"vitest": "^1.6.0",
+		"@types/node": "^20.10.0"
+	}
+}
