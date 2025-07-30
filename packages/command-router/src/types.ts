@@ -10,7 +10,7 @@ export interface CommandRequest {
 	id: string;
 	type: 'file' | 'shell' | 'editor';
 	operation: string;
-	args: Record<string, any>;
+	args: Record<string, unknown>;
 	context?: string;
 	source: 'plan' | 'chat' | 'user';
 }

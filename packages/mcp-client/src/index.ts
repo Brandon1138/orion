@@ -3,7 +3,7 @@
  * Read-only file operations with basic policy enforcement
  */
 
-import { MCPToolCall, MCPResult, MCPServerConfig, PolicyConfig, FileOperation } from './types.js';
+import type { MCPResult, MCPServerConfig, MCPToolCall, PolicyConfig } from './types.js';
 
 export * from './types.js';
 
@@ -58,7 +58,7 @@ export class MCPClient {
 	private isOperationAllowed(toolCall: MCPToolCall): boolean {
 		// Phase 1A: Only allow read operations
 		const readOnlyOperations = ['fs.read', 'fs.list', 'fs.search'];
-		
+
 		if (!readOnlyOperations.includes(toolCall.tool)) {
 			return false;
 		}
@@ -101,49 +101,49 @@ export class MCPClient {
 		}
 	}
 
-	private async readFile(path: string): Promise<MCPResult> {
+	private readFile(path: string): Promise<MCPResult> {
 		try {
 			// TODO: Implement actual file reading with Node.js fs
 			// For Phase 1A, return placeholder
-			return {
+			return Promise.resolve({
 				ok: true,
 				data: `File content from ${path} - Phase 1A placeholder`,
-			};
+			});
 		} catch (error) {
-			return {
+			return Promise.resolve({
 				ok: false,
-				error: `Failed to read file: ${error}`,
-			};
+				error: `Failed to read file: ${error instanceof Error ? error.message : String(error)}`,
+			});
 		}
 	}
 
-	private async listDirectory(path: string): Promise<MCPResult> {
+	private listDirectory(path: string): Promise<MCPResult> {
 		try {
 			// TODO: Implement actual directory listing
-			return {
+			return Promise.resolve({
 				ok: true,
 				data: [`Contents of ${path} - Phase 1A placeholder`],
-			};
+			});
 		} catch (error) {
-			return {
+			return Promise.resolve({
 				ok: false,
-				error: `Failed to list directory: ${error}`,
-			};
+				error: `Failed to list directory: ${error instanceof Error ? error.message : String(error)}`,
+			});
 		}
 	}
 
-	private async searchFiles(pattern: string, path: string): Promise<MCPResult> {
+	private searchFiles(pattern: string, path: string): Promise<MCPResult> {
 		try {
 			// TODO: Implement file search
-			return {
+			return Promise.resolve({
 				ok: true,
 				data: [`Search results for ${pattern} in ${path} - Phase 1A placeholder`],
-			};
+			});
 		} catch (error) {
-			return {
+			return Promise.resolve({
 				ok: false,
-				error: `Failed to search files: ${error}`,
-			};
+				error: `Failed to search files: ${error instanceof Error ? error.message : String(error)}`,
+			});
 		}
 	}
 }

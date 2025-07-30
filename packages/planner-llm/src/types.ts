@@ -47,7 +47,7 @@ export interface DayPlan {
 
 export interface PlanningContext {
 	date: string;
-	events: any[]; // Event[] from calendar-parser
+	events: unknown[]; // Event[] from calendar-parser
 	preferences: {
 		focusBlockMins: number;
 		style: 'concise' | 'chatty' | 'bullet';
@@ -55,7 +55,7 @@ export interface PlanningContext {
 	context?: {
 		openPRs?: number;
 		pendingDocs?: number;
-		[key: string]: any;
+		[key: string]: unknown;
 	};
 }
 

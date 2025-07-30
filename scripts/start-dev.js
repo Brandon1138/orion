@@ -23,7 +23,7 @@ const packages = [
 	'cli',
 ];
 
-const watchers = packages.map((pkg) => {
+const watchers = packages.map(pkg => {
 	console.log(`   Starting ${pkg}...`);
 	const child = spawn('npm', ['run', 'dev'], {
 		cwd: join(projectRoot, 'packages', pkg),
@@ -31,11 +31,11 @@ const watchers = packages.map((pkg) => {
 		shell: true,
 	});
 
-	child.stdout.on('data', (data) => {
+	child.stdout.on('data', data => {
 		console.log(`[${pkg}] ${data.toString()}`);
 	});
 
-	child.stderr.on('data', (data) => {
+	child.stderr.on('data', data => {
 		console.error(`[${pkg}] ${data.toString()}`);
 	});
 
@@ -45,7 +45,7 @@ const watchers = packages.map((pkg) => {
 // Handle graceful shutdown
 process.on('SIGINT', () => {
 	console.log('\n🛑 Shutting down development environment...');
-	watchers.forEach((child) => child.kill());
+	watchers.forEach(child => child.kill());
 	process.exit(0);
 });
 

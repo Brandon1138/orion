@@ -51,20 +51,12 @@ async function runDemo() {
 		console.log('📅 Test 3: Loading test calendar data...');
 		try {
 			const googleEventsPath = './fixtures/google-events.json';
-			const googleEvents = JSON.parse(
-				await readFile(googleEventsPath, 'utf-8')
-			);
-			console.log(
-				`   ✅ Google Calendar fixtures: ${googleEvents.length} events`
-			);
+			const googleEvents = JSON.parse(await readFile(googleEventsPath, 'utf-8'));
+			console.log(`   ✅ Google Calendar fixtures: ${googleEvents.length} events`);
 
 			const msgraphEventsPath = './fixtures/msgraph-events.json';
-			const msgraphEvents = JSON.parse(
-				await readFile(msgraphEventsPath, 'utf-8')
-			);
-			console.log(
-				`   ✅ Microsoft Graph fixtures: ${msgraphEvents.length} events`
-			);
+			const msgraphEvents = JSON.parse(await readFile(msgraphEventsPath, 'utf-8'));
+			console.log(`   ✅ Microsoft Graph fixtures: ${msgraphEvents.length} events`);
 
 			console.log(
 				`   📋 Sample event: "${googleEvents[0]?.title || 'None'}" at ${
@@ -81,26 +73,20 @@ async function runDemo() {
 		console.log(`   Node.js: ${process.version}`);
 		console.log(`   Platform: ${process.platform} ${process.arch}`);
 		console.log(`   Working Directory: ${process.cwd()}`);
-		console.log(
-			`   OpenAI API Key: ${
-				process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Not set'
-			}`
-		);
+		console.log(`   OpenAI API Key: ${process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Not set'}`);
 		console.log('');
 
 		// Test 5: Phase 1A Feature Summary
 		console.log('🎯 Test 5: Phase 1A Features Summary...');
 		const enabledFeatures = config.mvp.enabledFeatures || [];
 		console.log('   Enabled Features:');
-		enabledFeatures.forEach((feature) => {
+		enabledFeatures.forEach(feature => {
 			console.log(`     • ${feature}`);
 		});
 		console.log('');
 		console.log('   Phase 1A Capabilities:');
 		console.log('     • ✅ Basic day plan generation structure');
-		console.log(
-			'     • ✅ Calendar event parsing (Google Calendar integration ready)'
-		);
+		console.log('     • ✅ Calendar event parsing (Google Calendar integration ready)');
 		console.log('     • ✅ Read-only MCP file operations');
 		console.log('     • ✅ Conversation-based planning framework');
 		console.log('     • ✅ Basic CLI interface');
@@ -112,9 +98,7 @@ async function runDemo() {
 		console.log('🎉 Phase 1A Setup Complete!');
 		console.log('');
 		console.log('Next Steps:');
-		console.log(
-			'1. Set your OpenAI API key: export OPENAI_API_KEY=your_key_here'
-		);
+		console.log('1. Set your OpenAI API key: export OPENAI_API_KEY=your_key_here');
 		console.log('2. Try the CLI: node packages/cli/dist/cli.js status');
 		console.log('3. Start development: npm run dev');
 		console.log('4. Begin Phase 1B development');

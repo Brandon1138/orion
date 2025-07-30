@@ -3,14 +3,13 @@
  * Simplified routing for read-only operations
  */
 
-import { MCPClient } from '@orion/mcp-client';
-import {
-	CommandRequest,
-	RiskAssessment,
-	ApprovalRequest,
-	ApprovalResponse,
-	ExecutionResult,
+import type { MCPClient } from '@orion/mcp-client';
+import type {
 	ApprovalMode,
+	ApprovalRequest,
+	CommandRequest,
+	ExecutionResult,
+	RiskAssessment,
 	RiskLevel,
 } from './types.js';
 
@@ -50,7 +49,7 @@ export class CommandRouter {
 				return {
 					commandId: request.id,
 					success: result.ok,
-					output: result.stdout || String(result.data),
+					output: result.stdout ?? String(result.data),
 					error: result.error,
 					duration: Date.now() - startTime,
 				};

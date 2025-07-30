@@ -7,8 +7,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
-import OrionCore, { OrionConfig } from '@orion/core';
+import type { OrionConfig } from '@orion/core';
+import OrionCore from '@orion/core';
 
 export class OrionCLI {
 	private orion?: OrionCore;
@@ -17,17 +17,18 @@ export class OrionCLI {
 	async run(): Promise<void> {
 		const program = new Command();
 
-		program
-			.name('orion')
-			.description('Orion - Daily Planning Copilot')
-			.version('1.0.0 (Phase 1A)');
+		program.name('orion').description('Orion - Daily Planning Copilot').version('1.0.0 (Phase 1A)');
 
 		program
 			.command('plan')
 			.description('Generate a day plan')
-			.option('-d, --date <date>', 'Date in YYYY-MM-DD format', new Date().toISOString().split('T')[0])
+			.option(
+				'-d, --date <date>',
+				'Date in YYYY-MM-DD format',
+				new Date().toISOString().split('T')[0]
+			)
 			.option('--dry-run', 'Generate plan without executing actions')
-			.action(async (options) => {
+			.action(async (options: { date: string; 'dry-run'?: boolean }) => {
 				await this.initializeOrion();
 				await this.handlePlanCommand(options);
 			});
@@ -43,16 +44,16 @@ export class OrionCLI {
 		program
 			.command('status')
 			.description('Show Orion status and configuration')
-			.action(async () => {
-				await this.showStatusCommand();
+			.action(() => {
+				this.showStatusCommand();
 			});
 
 		program
 			.command('audit')
 			.description('Show audit log')
 			.option('--tail', 'Follow audit log')
-			.action(async (options) => {
-				await this.handleAuditCommand(options);
+			.action((options: { tail?: boolean }) => {
+				this.handleAuditCommand(options);
 			});
 
 		await program.parseAsync();
@@ -63,7 +64,7 @@ export class OrionCLI {
 
 		try {
 			console.log(chalk.blue('🚀 Initializing Orion...'));
-			
+
 			const config = await this.loadConfig();
 			this.orion = new OrionCore(config);
 			this.sessionId = this.orion.startSession('cli-user');
@@ -78,12 +79,12 @@ export class OrionCLI {
 
 	private async loadConfig(): Promise<OrionConfig> {
 		try {
-			const configPath = process.env.ORION_CONFIG || './orion.config.json';
+			const configPath = process.env.ORION_CONFIG ?? './orion.config.json';
 			const configData = await readFile(configPath, 'utf-8');
-			return JSON.parse(configData);
-		} catch (error) {
+			return JSON.parse(configData) as OrionConfig;
+		} catch {
 			console.error(chalk.yellow('⚠️  Could not load config, using defaults'));
-			
+
 			// Return minimal Phase 1A config
 			return {
 				profile: {
@@ -129,14 +130,14 @@ export class OrionCLI {
 		}
 	}
 
-	private async handlePlanCommand(options: any): Promise<void> {
+	private async handlePlanCommand(options: { date: string }): Promise<void> {
 		if (!this.orion || !this.sessionId) {
 			console.error(chalk.red('❌ Orion not initialized'));
 			return;
 		}
 
 		console.log(chalk.blue(`📅 Generating plan for ${options.date}...`));
-		
+
 		try {
 			const response = await this.orion.generatePlan(this.sessionId, {
 				date: options.date,
@@ -151,7 +152,9 @@ export class OrionCLI {
 			response.plan.blocks.forEach(block => {
 				const timeRange = `${block.start}-${block.end}`;
 				const typeEmoji = this.getTypeEmoji(block.type);
-				console.log(`  ${typeEmoji} ${chalk.cyan(timeRange)} ${block.label} ${chalk.gray(`(${block.type})`)}`);
+				console.log(
+					`  ${typeEmoji} ${chalk.cyan(timeRange)} ${block.label} ${chalk.gray(`(${block.type})`)}`
+				);
 			});
 
 			if (response.needsClarification) {
@@ -160,7 +163,6 @@ export class OrionCLI {
 					console.log(`  • ${q}`);
 				});
 			}
-
 		} catch (error) {
 			console.error(chalk.red('❌ Failed to generate plan:'), error);
 		}
@@ -175,8 +177,9 @@ export class OrionCLI {
 		console.log(chalk.green('💬 Starting interactive chat with Orion'));
 		console.log(chalk.gray('Type "exit" or "quit" to end the session\n'));
 
-		while (true) {
-			const { message } = await inquirer.prompt([
+		let shouldContinue = true;
+		while (shouldContinue) {
+			const result = await inquirer.prompt<{ message: string }>([
 				{
 					type: 'input',
 					name: 'message',
@@ -184,39 +187,48 @@ export class OrionCLI {
 				},
 			]);
 
-			if (message.toLowerCase() === 'exit' || message.toLowerCase() === 'quit') {
+			const message = result.message;
+			if (
+				typeof message === 'string' &&
+				(message.toLowerCase() === 'exit' || message.toLowerCase() === 'quit')
+			) {
 				console.log(chalk.yellow('👋 Goodbye!'));
-				break;
+				shouldContinue = false;
+				continue;
 			}
 
-			try {
-				const response = await this.orion.processMessage(this.sessionId, message);
-				console.log(chalk.green('Orion:'), response);
-				console.log('');
-			} catch (error) {
-				console.error(chalk.red('❌ Error:'), error);
+			if (typeof message === 'string') {
+				try {
+					const response = await this.orion.processMessage(this.sessionId, message);
+					console.log(chalk.green('Orion:'), response);
+					console.log('');
+				} catch (error) {
+					console.error(chalk.red('❌ Error:'), error);
+				}
 			}
 		}
 	}
 
-	private async showStatusCommand(): Promise<void> {
+	private showStatusCommand(): void {
 		console.log(chalk.blue('📊 Orion Status'));
-		console.log(chalk.gray('=' .repeat(50)));
-		
+		console.log(chalk.gray('='.repeat(50)));
+
 		console.log(`${chalk.cyan('Version:')} 1.0.0 (Phase 1A)`);
 		console.log(`${chalk.cyan('Status:')} ${chalk.green('Ready')}`);
 		console.log(`${chalk.cyan('Features:')} Planning, Calendar Reading, File Operations`);
-		console.log(`${chalk.cyan('Config:')} ${process.env.ORION_CONFIG || './orion.config.json'}`);
-		
+		console.log(`${chalk.cyan('Config:')} ${process.env.ORION_CONFIG ?? './orion.config.json'}`);
+
 		// Check environment
-		console.log('\n' + chalk.blue('🔧 Environment:'));
+		console.log(`\n${chalk.blue('🔧 Environment:')}`);
 		console.log(`${chalk.cyan('Node.js:')} ${process.version}`);
-		console.log(`${chalk.cyan('OpenAI API:')} ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Missing'}`);
-		
+		console.log(
+			`${chalk.cyan('OpenAI API:')} ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Missing'}`
+		);
+
 		if (this.orion && this.sessionId) {
 			const session = this.orion.getSession(this.sessionId);
 			if (session) {
-				console.log('\n' + chalk.blue('📱 Current Session:'));
+				console.log(`\n${chalk.blue('📱 Current Session:')}`);
 				console.log(`${chalk.cyan('Session ID:')} ${session.sessionId}`);
 				console.log(`${chalk.cyan('State:')} ${session.state}`);
 				console.log(`${chalk.cyan('Pattern:')} ${session.pattern}`);
@@ -225,7 +237,7 @@ export class OrionCLI {
 		}
 	}
 
-	private async handleAuditCommand(options: any): Promise<void> {
+	private handleAuditCommand(_options: Record<string, unknown>): void {
 		// Phase 1A: Basic audit log viewing
 		console.log(chalk.blue('📋 Audit Log'));
 		console.log(chalk.gray('Phase 1A: Console-based audit logging'));

@@ -4,16 +4,19 @@
  */
 
 import OpenAI from 'openai';
-import { DayPlan, PlanningContext, PlannerConfig } from './types.js';
+import type { DayPlan, PlannerConfig, PlanningContext } from './types.js';
 
 export * from './types.js';
 
 export class PlannerLLM {
 	private openai: OpenAI;
 
-	constructor(private config: PlannerConfig, apiKey?: string) {
+	constructor(
+		private config: PlannerConfig,
+		apiKey?: string
+	) {
 		this.openai = new OpenAI({
-			apiKey: apiKey || process.env.OPENAI_API_KEY,
+			apiKey: apiKey ?? process.env.OPENAI_API_KEY,
 		});
 	}
 
@@ -21,11 +24,8 @@ export class PlannerLLM {
 	 * Generate a structured day plan using LLM
 	 * Phase 1A: Basic implementation with OpenAI structured outputs
 	 */
-	async generatePlan(context: PlanningContext): Promise<DayPlan> {
+	generatePlan(context: PlanningContext): Promise<DayPlan> {
 		try {
-			const systemPrompt = this.buildSystemPrompt();
-			const userPrompt = this.buildUserPrompt(context);
-
 			// TODO: Implement OpenAI structured output call
 			// For Phase 1A, return a basic plan structure
 			const plan: DayPlan = {
@@ -44,10 +44,10 @@ export class PlannerLLM {
 				suggestions: ['Phase 1A: Full LLM integration coming soon'],
 			};
 
-			return plan;
+			return Promise.resolve(plan);
 		} catch (error) {
 			console.error('Failed to generate plan:', error);
-			throw new Error('Plan generation failed');
+			return Promise.reject(new Error('Plan generation failed'));
 		}
 	}
 
@@ -68,7 +68,7 @@ Requirements:
 		return `Plan for ${context.date}:
 Events: ${JSON.stringify(context.events, null, 2)}
 Preferences: ${JSON.stringify(context.preferences, null, 2)}
-Context: ${JSON.stringify(context.context || {}, null, 2)}`;
+Context: ${JSON.stringify(context.context ?? {}, null, 2)}`;
 	}
 }
 

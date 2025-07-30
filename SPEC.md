@@ -119,13 +119,11 @@
 **Security Update Strategy:**
 
 1. **Automatic Patch Updates** (within 24 hours):
-
    - Patch versions of runtime dependencies
    - Security patches with CVE scores < 7.0
    - Non-breaking dependency updates
 
 2. **Manual Review Updates** (within 1 week):
-
    - Minor version updates of critical dependencies
    - Security patches with CVE scores >= 7.0
    - Updates affecting OpenAI Agents SDK or MCP protocol
@@ -176,7 +174,6 @@ interface CompatibilityPolicy {
    ```
 
 2. **Vulnerability Management:**
-
    - **Automated Scanning**: GitHub Dependabot + `npm audit` in CI/CD
    - **Critical CVEs**: Emergency patches within 4 hours
    - **High CVEs**: Patches within 24 hours
@@ -346,7 +343,6 @@ const compatibilityMatrix = {
    ```
 
 3. **Alert Thresholds:**
-
    - **Critical CVE**: Immediate PagerDuty alert + Slack notification
    - **High CVE**: Slack alert within 1 hour + GitHub issue creation
    - **Dependency end-of-life**: 90-day advance warning + migration planning
@@ -526,15 +522,7 @@ type DayPlan = {
 		start: string; // ISO
 		end: string; // ISO
 		label: string; // "Deep work: feature X"
-		type:
-			| 'meeting'
-			| 'focus'
-			| 'break'
-			| 'admin'
-			| 'commute'
-			| 'exercise'
-			| 'Errand'
-			| 'sleep';
+		type: 'meeting' | 'focus' | 'break' | 'admin' | 'commute' | 'exercise' | 'Errand' | 'sleep';
 		dependsOn?: string[]; // ids of other blocks
 		linkedEvents?: string[]; // Event.id references
 		filesToOpen?: string[]; // paths
@@ -657,10 +645,7 @@ interface ContextManager {
 	prioritizeContext(contexts: ContextWindow[]): ContextWindow[];
 
 	// Conversation history with smart summarization
-	saveConversationContext(
-		sessionId: string,
-		context: ConversationHistory
-	): void;
+	saveConversationContext(sessionId: string, context: ConversationHistory): void;
 	loadRelevantContext(userId: string, currentDate: Date): ConversationHistory[];
 	suggestNewChat(currentTokenCount: number, maxTokens: number): boolean;
 }
@@ -707,11 +692,7 @@ REVIEW → user edits → APPLY
 
 ```typescript
 type RecoveryStrategy = {
-	errorType:
-		| 'calendar-access'
-		| 'llm-timeout'
-		| 'tool-failure'
-		| 'ambiguous-input';
+	errorType: 'calendar-access' | 'llm-timeout' | 'tool-failure' | 'ambiguous-input';
 	userMessage: string;
 	suggestedActions: string[];
 	fallbackBehavior: 'retry' | 'simplify' | 'ask-user' | 'graceful-degradation';
@@ -822,7 +803,6 @@ while session.active:
 **Mechanisms.**
 
 - **Permission sandbox.**
-
   - Allowlist directories and file patterns.
   - Command verb allow/deny lists.
   - Time, CPU, and memory ceilings per command.
@@ -843,18 +823,15 @@ while session.active:
 ```
 
 - **Manual approval flow.**
-
   - Diff view for file writes.
   - Dry‑run for `rm`, `move`, `git push`, package managers, network calls.
   - One‑shot or session‑scoped approvals with expiry.
 
 - **Secrets.**
-
   - Store tokens in keychain; never echo in logs.
   - Redaction middleware scrubs outputs.
 
 - **Network policy.**
-
   - Offline‑first paths for local `.ics` and file tasks.
   - Proxy settings optional for enterprise.
 

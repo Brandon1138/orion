@@ -3,9 +3,8 @@
  * Main orchestration types and interfaces
  */
 
-import { Event, CalendarConfig } from '@orion/calendar-parser';
-import { DayPlan, PlanningContext } from '@orion/planner-llm';
-import { CommandRequest, ExecutionResult } from '@orion/command-router';
+import type { CalendarConfig, Event } from '@orion/calendar-parser';
+import type { DayPlan } from '@orion/planner-llm';
 
 export type SessionState = 'idle' | 'context_build' | 'plan_draft' | 'clarify' | 'apply' | 'review';
 
@@ -67,7 +66,7 @@ export interface SessionContext {
 	messages: Message[];
 	currentPlan?: DayPlan;
 	events: Event[];
-	preferences: any;
+	preferences: Record<string, unknown>;
 	startTime: Date;
 }
 
@@ -75,14 +74,14 @@ export interface Message {
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	timestamp: Date;
-	metadata?: any;
+	metadata?: Record<string, unknown>;
 }
 
 export interface PlanRequest {
 	date?: string; // YYYY-MM-DD, defaults to today
 	events?: Event[];
-	preferences?: any;
-	context?: any;
+	preferences?: Record<string, unknown>;
+	context?: Record<string, unknown>;
 }
 
 export interface PlanResponse {
@@ -97,8 +96,8 @@ export interface AuditEvent {
 	actor: string;
 	user: string;
 	action: string;
-	args: any;
-	result: any;
+	args: Record<string, unknown>;
+	result: Record<string, unknown>;
 	prevHash?: string;
 	hash: string;
 }

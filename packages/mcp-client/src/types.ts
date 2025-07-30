@@ -41,7 +41,7 @@ export interface PolicyConfig {
 export interface FileOperation {
 	type: 'read' | 'list' | 'search';
 	path: string;
-	args?: Record<string, any>;
+	args?: Record<string, unknown>;
 }
 
 export interface ShellOperation {

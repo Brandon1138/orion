@@ -3,19 +3,18 @@
  * Main orchestration and conversation loop
  */
 
-import { CalendarParser, Event } from '@orion/calendar-parser';
-import { PlannerLLM, DayPlan } from '@orion/planner-llm';
+import { CalendarParser } from '@orion/calendar-parser';
+import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
 import { CommandRouter } from '@orion/command-router';
-import {
-	OrionConfig,
-	SessionContext,
-	SessionState,
+import type {
+	AuditEvent,
 	ConversationPattern,
+	Message,
+	OrionConfig,
 	PlanRequest,
 	PlanResponse,
-	Message,
-	AuditEvent,
+	SessionContext,
 } from './types.js';
 
 export * from './types.js';
@@ -25,7 +24,7 @@ export class OrionCore {
 	private plannerLLM: PlannerLLM;
 	private mcpClient: MCPClient;
 	private commandRouter: CommandRouter;
-	private sessions: Map<string, SessionContext> = new Map();
+	private sessions = new Map<string, SessionContext>();
 
 	constructor(private config: OrionConfig) {
 		this.calendarParser = new CalendarParser(config.calendars);
@@ -62,7 +61,7 @@ export class OrionCore {
 	 */
 	startSession(userId: string): string {
 		const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-		
+
 		const session: SessionContext = {
 			sessionId,
 			userId,
@@ -98,8 +97,9 @@ export class OrionCore {
 			});
 
 			// Detect conversation pattern and update session state
-			session.pattern = this.detectConversationPattern(session.messages);
-			
+			const detectedPattern: ConversationPattern = this.detectConversationPattern(session.messages);
+			session.pattern = detectedPattern;
+
 			// Route to appropriate handler based on pattern
 			let response: string;
 
@@ -107,7 +107,7 @@ export class OrionCore {
 				session.state = 'context_build';
 				response = await this.handlePlanningRequest(session, userMessage);
 			} else {
-				response = await this.handleGeneralQuery(session, userMessage);
+				response = this.handleGeneralQuery(session, userMessage);
 			}
 
 			// Add assistant response to session
@@ -145,15 +145,13 @@ export class OrionCore {
 
 			// Load calendar events if not provided
 			let events = request.events;
-			if (!events) {
-				events = await this.calendarParser.loadSources();
-			}
+			events ??= await this.calendarParser.loadSources();
 
 			// Build planning context
 			const planningContext = {
-				date: request.date || new Date().toISOString().split('T')[0],
+				date: request.date ?? new Date().toISOString().split('T')[0],
 				events,
-				preferences: { ...session.preferences, ...request.preferences },
+				preferences: { ...session.preferences, ...(request.preferences ?? {}) },
 				context: request.context,
 			};
 
@@ -164,8 +162,8 @@ export class OrionCore {
 			const response: PlanResponse = {
 				plan,
 				confidence: 0.8, // Phase 1A: static confidence
-				needsClarification: (plan.ambiguities?.length || 0) > 0,
-				questions: plan.ambiguities?.map(a => a.question) || [],
+				needsClarification: (plan.ambiguities?.length ?? 0) > 0,
+				questions: plan.ambiguities?.map(a => a.question) ?? [],
 			};
 
 			this.auditLog('plan_generated', {
@@ -198,7 +196,7 @@ export class OrionCore {
 		}
 
 		const lastMessage = messages[messages.length - 1];
-		
+
 		if (this.isPlanningRequest(lastMessage.content)) {
 			return 'planning-session';
 		}
@@ -212,10 +210,17 @@ export class OrionCore {
 	 */
 	private isPlanningRequest(message: string): boolean {
 		const planningKeywords = [
-			'plan', 'schedule', 'day', 'today', 'tomorrow',
-			'meetings', 'calendar', 'organize', 'time'
+			'plan',
+			'schedule',
+			'day',
+			'today',
+			'tomorrow',
+			'meetings',
+			'calendar',
+			'organize',
+			'time',
 		];
-		
+
 		const lowerMessage = message.toLowerCase();
 		return planningKeywords.some(keyword => lowerMessage.includes(keyword));
 	}
@@ -223,13 +228,13 @@ export class OrionCore {
 	/**
 	 * Handle planning-related requests
 	 */
-	private async handlePlanningRequest(session: SessionContext, message: string): Promise<string> {
+	private async handlePlanningRequest(session: SessionContext, _message: string): Promise<string> {
 		try {
 			const planResponse = await this.generatePlan(session.sessionId, {});
-			
+
 			let response = `Here's your plan for ${planResponse.plan.date}:\n\n`;
 			response += `**${planResponse.plan.summary}**\n\n`;
-			
+
 			response += '**Schedule:**\n';
 			planResponse.plan.blocks.forEach(block => {
 				response += `• ${block.start}-${block.end}: ${block.label} (${block.type})\n`;
@@ -258,7 +263,7 @@ export class OrionCore {
 	/**
 	 * Handle general queries
 	 */
-	private async handleGeneralQuery(session: SessionContext, message: string): Promise<string> {
+	private handleGeneralQuery(session: SessionContext, message: string): string {
 		// Phase 1A: Simple responses for non-planning queries
 		if (message.toLowerCase().includes('help')) {
 			return this.getHelpMessage();
@@ -279,7 +284,7 @@ export class OrionCore {
 
 I can help you with:
 • **Day Planning**: "What's my day looking like?" or "Plan my day"
-• **Schedule Review**: "Show me today's meetings" 
+• **Schedule Review**: "Show me today's meetings"
 • **Status Check**: "What's my status?"
 
 **Phase 1A Features:**
@@ -304,7 +309,7 @@ Type your request and I'll help you plan your day!`;
 		return `**Session Status**
 • Session ID: ${session.sessionId}
 • State: ${session.state}
-• Pattern: ${session.pattern}  
+• Pattern: ${session.pattern}
 • Messages: ${session.messages.length}
 • Current Plan: ${session.currentPlan ? '✓ Generated' : '✗ None'}
 • Started: ${session.startTime.toLocaleTimeString()}
@@ -318,7 +323,7 @@ Type your request and I'll help you plan your day!`;
 	/**
 	 * Log audit events
 	 */
-	private auditLog(action: string, args: any): void {
+	private auditLog(action: string, args: Record<string, unknown>): void {
 		const event: AuditEvent = {
 			ts: new Date().toISOString(),
 			actor: 'orion-core',
@@ -331,7 +336,7 @@ Type your request and I'll help you plan your day!`;
 
 		// Phase 1A: Console logging, file logging in next phase
 		if (this.config.mvp.debugMode) {
-			console.log(`[AUDIT] ${event.ts} - ${action}:`, args);
+			console.warn(`[AUDIT] ${event.ts} - ${action}:`, args);
 		}
 	}
 
@@ -343,7 +348,7 @@ Type your request and I'll help you plan your day!`;
 		let hash = 0;
 		for (let i = 0; i < data.length; i++) {
 			const char = data.charCodeAt(i);
-			hash = ((hash << 5) - hash) + char;
+			hash = (hash << 5) - hash + char;
 			hash = hash & hash; // Convert to 32-bit integer
 		}
 		return hash.toString(36);
