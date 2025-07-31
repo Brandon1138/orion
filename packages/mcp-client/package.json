@@ -12,7 +12,8 @@
 		"lint": "echo 'Linting not yet configured'"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.16.0"
+		"@modelcontextprotocol/sdk": "^1.16.0",
+		"glob": "^10.3.0"
 	},
 	"devDependencies": {
 		"typescript": "^5.3.0",

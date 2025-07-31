@@ -1,0 +1,153 @@
+{
+	"taskLists": [
+		{
+			"kind": "tasks#taskList",
+			"id": "@default",
+			"etag": "\"LTEzNzI1OTQ4OA\"",
+			"title": "My Tasks",
+			"updated": "2025-01-31T10:30:00.000Z",
+			"selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/@default"
+		},
+		{
+			"kind": "tasks#taskList",
+			"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MDk",
+			"etag": "\"LTEzNzI1OTQ5OA\"",
+			"title": "Work Projects",
+			"updated": "2025-01-31T09:15:00.000Z",
+			"selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MDk"
+		},
+		{
+			"kind": "tasks#taskList",
+			"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTA",
+			"etag": "\"LTEzNzI1OTUwOA\"",
+			"title": "Personal",
+			"updated": "2025-01-30T16:45:00.000Z",
+			"selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MTA"
+		}
+	],
+	"tasks": {
+		"@default": [
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTE",
+				"etag": "\"LTEzNzI1OTUxOA\"",
+				"title": "Review quarterly reports",
+				"updated": "2025-01-31T10:30:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/@default/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTE",
+				"status": "needsAction",
+				"due": "2025-02-05T23:59:59.000Z",
+				"notes": "Need to review Q4 sales, marketing, and operations reports before the board meeting."
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTI",
+				"etag": "\"LTEzNzI1OTUyOA\"",
+				"title": "Schedule team meeting",
+				"updated": "2025-01-31T09:45:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/@default/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTI",
+				"status": "needsAction",
+				"due": "2025-02-01T17:00:00.000Z",
+				"notes": "Need to coordinate with Sarah, Mike, and Jennifer for next week's planning session."
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTM",
+				"etag": "\"LTEzNzI1OTUzOA\"",
+				"title": "Update project timeline",
+				"updated": "2025-01-30T14:20:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/@default/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTM",
+				"status": "completed",
+				"completed": "2025-01-30T16:30:00.000Z",
+				"notes": "Updated Gantt chart with latest milestone dates."
+			}
+		],
+		"MDQ4NjUwMjI1ODU3NDk1MTg1MDk": [
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTQ",
+				"etag": "\"LTEzNzI1OTU0OA\"",
+				"title": "Orion AI Assistant Development",
+				"updated": "2025-01-31T09:15:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MDk/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTQ",
+				"status": "needsAction",
+				"due": "2025-03-15T23:59:59.000Z",
+				"notes": "Phase 1A: Google Tasks integration with conversational workflow",
+				"position": "00000000000000000000"
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTU",
+				"etag": "\"LTEzNzI1OTU1OA\"",
+				"title": "Implement TaskParser class",
+				"updated": "2025-01-31T08:30:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MDk/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTU",
+				"parent": "MDQ4NjUwMjI1ODU3NDk1MTg1MTQ",
+				"status": "needsAction",
+				"due": "2025-02-01T23:59:59.000Z",
+				"notes": "Create packages/task-parser/ with Google Tasks API integration",
+				"position": "00000000000000000001"
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTY",
+				"etag": "\"LTEzNzI1OTU2OA\"",
+				"title": "Build conversational interview logic",
+				"updated": "2025-01-31T08:15:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MDk/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTY",
+				"parent": "MDQ4NjUwMjI1ODU3NDk1MTg1MTQ",
+				"status": "needsAction",
+				"due": "2025-02-07T23:59:59.000Z",
+				"notes": "Update PlannerLLM for task priority interviewing",
+				"position": "00000000000000000002"
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTc",
+				"etag": "\"LTEzNzI1OTU3OA\"",
+				"title": "Set up OAuth2 credentials",
+				"updated": "2025-01-31T07:45:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MDk/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTc",
+				"parent": "MDQ4NjUwMjI1ODU3NDk1MTg1MTU",
+				"status": "completed",
+				"completed": "2025-01-31T09:00:00.000Z",
+				"notes": "Google Cloud Console project configured with Tasks API scope",
+				"position": "00000000000000000003"
+			}
+		],
+		"MDQ4NjUwMjI1ODU3NDk1MTg1MTA": [
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTg",
+				"etag": "\"LTEzNzI1OTU4OA\"",
+				"title": "Buy groceries",
+				"updated": "2025-01-30T16:45:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MTA/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTg",
+				"status": "needsAction",
+				"due": "2025-02-01T18:00:00.000Z",
+				"notes": "Milk, bread, eggs, chicken, vegetables"
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MTg1MTk",
+				"etag": "\"LTEzNzI1OTU5OA\"",
+				"title": "Call dentist for appointment",
+				"updated": "2025-01-30T15:30:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MTA/tasks/MDQ4NjUwMjI1ODU3NDk1MTg1MTk",
+				"status": "needsAction",
+				"due": "2025-02-03T12:00:00.000Z",
+				"notes": "Regular cleaning appointment - try to schedule for next week"
+			},
+			{
+				"kind": "tasks#task",
+				"id": "MDQ4NjUwMjI1ODU3NDk1MjAw",
+				"etag": "\"LTEzNzI1OTYwOA\"",
+				"title": "Private: Personal financial review",
+				"updated": "2025-01-29T20:15:00.000Z",
+				"selfLink": "https://www.googleapis.com/tasks/v1/lists/MDQ4NjUwMjI1ODU3NDk1MTg1MTA/tasks/MDQ4NjUwMjI1ODU3NDk1MjAw",
+				"status": "needsAction",
+				"due": "2025-02-10T23:59:59.000Z",
+				"notes": "Review investment portfolio and monthly budget. Private and confidential."
+			}
+		]
+	}
+}

@@ -1,8 +1,8 @@
 # Orion — Technical Specification
 
-> Daily planning copilot + local file/OS agent.
+> Task-focused planning copilot + local file/OS agent.
 > Built with the OpenAI Agents SDK, wired to MCP tools for file and shell access.
-> Primary UX: a conversational plan for the day, with surgical control over files and commands.
+> Primary UX: conversational task planning that reads Google Tasks, interviews the user about priorities and timing, then suggests calendar scheduling.
 
 ---
 
@@ -24,9 +24,9 @@
 
 **Phased Implementation.** Orion follows a rapid iteration approach with segmented phases for controlled complexity:
 
-**Phase 1A Foundation (Weeks 1-2)**: Minimal viable core with Google Calendar integration, basic conversation loop, and structured plan generation with DayPlan schema. Read-only MCP file operations only. Focus: Prove core concept with real user feedback.
+**Phase 1A Foundation (Weeks 1-2)**: Minimal viable core with Google Tasks integration, conversational task interviewing, and structured task planning with TaskPlan schema. Read-only MCP file operations only. Focus: Prove core conversational planning concept with real user feedback.
 
-**Phase 1B Enhancement (Weeks 3-4)**: Add approval workflows for safe command execution, expand MCP tool coverage to include basic shell operations, implement user preference learning, and add feedback collection mechanisms. Focus: Build trust through controlled automation.
+**Phase 1B Enhancement (Weeks 3-4)**: Add calendar writing capabilities with approval workflows, expand MCP tool coverage to include calendar event creation, implement user preference learning for task prioritization, and add feedback collection mechanisms. Focus: Complete the task-to-calendar workflow with safety controls.
 
 **Phase 2 Scale (Weeks 5-7)**: Multi-calendar support (Microsoft Graph, .ics), advanced security features, comprehensive audit logging, and production-ready error handling. Focus: Enterprise readiness and reliability.
 
@@ -36,29 +36,29 @@
 
 **Phase 1A Core Features**:
 
-- Google Calendar read-only integration with OAuth2
-- Basic conversation loop using OpenAI Agents SDK
-- Structured DayPlan generation with JSON schema validation
+- Google Tasks read-only integration with OAuth2
+- Conversational task interviewing using OpenAI Agents SDK
+- Structured TaskPlan generation with JSON schema validation
 - Simple MCP file operations (read, list directories)
 - Basic error handling and fallback mechanisms
 - Foundation audit logging (local JSONL)
 
 **Phase 1B Enhanced Features**:
 
-- Manual approval workflows for shell commands
-- Expanded MCP tools: safe shell operations (ls, cat, git status)
-- User preference learning and storage
-- Feedback collection system with quick ratings
-- Context pruning for token efficiency
+- Manual approval workflows for calendar writing via MCP
+- Expanded MCP tools: calendar event creation and modification
+- User preference learning for task prioritization patterns
+- Feedback collection system for plan effectiveness
+- Context pruning for conversation efficiency
 - Retry strategies with exponential backoff
 
 **Built-in Use Cases**:
 
-- **Morning Briefing Agent**: "What's my day looking like?"
-- **Meeting Prep Agent**: "Help me prepare for my 2pm with Sarah"
-- **Task Prioritization Agent**: "What should I focus on today?"
-- **Schedule Optimization Agent**: "Find me time for deep work"
-- **End-of-Day Reflection Agent**: "How did today go?"
+- **Task Review Agent**: "Let's go through my Google Tasks and plan when to do them"
+- **Priority Interviewer**: "Help me figure out what's most important this week"
+- **Schedule Planning Agent**: "When should I tackle this project?"
+- **Calendar Suggestion Agent**: "Block time for my high-priority tasks"
+- **Task Context Agent**: "What files do I need for this task?"
 
 ---
 
@@ -379,7 +379,8 @@ const compatibilityMatrix = {
 
 **APIs & Integrations**:
 
-- **Calendar APIs**: Google Calendar API v3, Microsoft Graph Calendar API
+- **Task APIs**: Google Tasks API v1 for reading task lists and items
+- **Calendar APIs**: Google Calendar API v3 for writing events (via MCP)
 - **MCP Servers**: Built-in filesystem, shell, and web browsing servers
 - **Monitoring**: OpenTelemetry with optional cloud exporters
 - **Health Checks**: Custom health check endpoints with service dependency monitoring
@@ -444,8 +445,8 @@ interface ErrorRecoveryStrategy {
 Picture a **hub‑and‑spokes**:
 
 - **OrionCore (hub).** Conversation loop, tool orchestration, memory, approvals, audit.
-- **PlannerLLM (spoke).** Generates the plan from calendar context and preferences.
-- **CalendarParser (spoke).** Normalises events from Google, Microsoft Graph, and `.ics`.
+- **PlannerLLM (spoke).** Conducts conversational task interviews and generates scheduling recommendations.
+- **TaskParser (spoke).** Reads and normalizes tasks from Google Tasks API.
 - **MCPClient (spoke).** Bridges to file and shell tools; enforces scopes.
 - **CommandRouter (spoke).** Classifies LLM intents to MCP tools; gates approvals.
 - **CodexHelper (spoke, optional).** Codegen, refactors, and sandbox execution.
@@ -454,101 +455,120 @@ Picture a **hub‑and‑spokes**:
 
 Data flow:
 
-1. **Ingest** calendars → **CalendarParser** → **OrionCore** context.
-2. **Plan** request → **PlannerLLM** (JSON structured output) → **OrionCore**.
-3. **Clarify** loop when events look ambiguous.
-4. **Act**: **CommandRouter** → **MCPClient** tools (fs/shell).
-5. **Write‑back** (optional): create/adjust events via provider APIs.
-6. **Persist** preferences, scopes, and logs.
+1. **Ingest** tasks → **TaskParser** → **OrionCore** context.
+2. **Interview** request → **PlannerLLM** (conversational task prioritization) → **OrionCore**.
+3. **Clarify** loop when task priorities or context need exploration.
+4. **Analyze**: **PlannerLLM** generates **TaskPlan** with scheduling recommendations.
+5. **Act**: **CommandRouter** → **MCPClient** tools (fs/shell) for task context.
+6. **Schedule** (Phase 1B): create calendar events via **MCPClient** → **CommandRouter** approvals.
+7. **Persist** task analysis, preferences, and conversation history.
 
 ---
 
 ## 3) Modules
 
-### 3.1 CalendarParser
+### 3.1 TaskParser
 
-**Purpose.** Unify calendar inputs and lift them into a typed model.
+**Purpose.** Read and normalize user task data from Google Tasks API into a typed model for conversational planning.
 
 **Inputs.**
 
-- Google Calendar API (OAuth2).
-- Microsoft Graph Calendar.
-- Local `.ics` files (RFC 5545).
+- Google Tasks API v1 (OAuth2).
+- Task lists and task items with metadata.
 
-**Outputs.** `Event[]` with fields:
+**Outputs.** `Task[]` with fields:
 
 ```ts
-type Event = {
-	id: string; // provider id or synthetic
-	provider: 'google' | 'msgraph' | 'ics';
+type Task = {
+	id: string; // Google Tasks task ID
+	provider: 'google-tasks';
 	title: string;
-	description?: string;
-	start: string; // ISO 8601 with timezone
-	end: string; // ISO 8601 with timezone
-	allDay: boolean;
-	location?: string;
-	attendees?: { email: string; response?: 'yes' | 'no' | 'maybe' }[];
-	recurrence?: string; // RRULE string if present
-	transparency?: 'busy' | 'free';
-	sensitivity?: 'normal' | 'private' | 'confidential';
-	sourceUri?: string; // event htmlLink or file path
-	raw?: unknown; // original payload
+	notes?: string; // task description/details
+	status: 'needsAction' | 'completed';
+	due?: string; // ISO 8601 date if set
+	completed?: string; // ISO 8601 datetime if completed
+	parent?: string; // parent task ID for subtasks
+	position: string; // position in task list
+	taskList: {
+		id: string;
+		title: string;
+	};
+	links?: { type: string; description: string; link: string }[];
+	sourceUri?: string; // Google Tasks web URL
+	raw?: unknown; // original API payload
 };
 ```
 
 **Functions.**
 
-- `loadSources(config: CalendarConfig): Promise<Event[]>`
-- `diff(local: Event[], proposed: Event[]): ChangeSet`
-- `writeChanges(changes: ChangeSet): Promise<WriteResult>` (guarded by approval policy)
+- `loadTaskLists(config: TaskConfig): Promise<Task[]>`
+- `getTaskContext(taskId: string): Promise<TaskContext>` // related files, deadlines
+- `markCompleted(taskId: string): Promise<void>` (Phase 1B with approval)
 
 **Edge cases.**
 
 - Timezone rules → canonicalise to user’s primary TZ, keep source offsets.
-- Recurrence expansion window (e.g., today ±7 days).
+- Due dates without times → assume end of day in user timezone.
 - Private/limited events → mask fields until user opts in.
 
 ### 3.2 PlannerLLM
 
-**Purpose.** Turn events + preferences + constraints into a crisp day plan.
+**Purpose.** Conversationally interview user about their tasks, understand priorities and constraints, then generate structured scheduling recommendations.
 
-**Contract.** Structured output must follow `DayPlan v1`:
+**Contract.** Structured output must follow `TaskPlan v1`:
 
 ```ts
-type DayPlan = {
-	date: string; // YYYY-MM-DD
-	summary: string; // 2–3 sentences
-	blocks: {
-		start: string; // ISO
-		end: string; // ISO
-		label: string; // "Deep work: feature X"
-		type: 'meeting' | 'focus' | 'break' | 'admin' | 'commute' | 'exercise' | 'Errand' | 'sleep';
-		dependsOn?: string[]; // ids of other blocks
-		linkedEvents?: string[]; // Event.id references
-		filesToOpen?: string[]; // paths
-		commands?: string[]; // shell snippets, never executed without approval
-		risk?: 'low' | 'medium' | 'high'; // schedule risk
+type TaskPlan = {
+	planDate: string; // YYYY-MM-DD when this plan was created
+	conversationSummary: string; // 2-3 sentences about what was discussed
+	taskAnalysis: {
+		taskId: string; // Google Tasks task ID
+		title: string;
+		priority: 'urgent' | 'high' | 'medium' | 'low';
+		estimatedDuration: number; // minutes
+		complexity: 'simple' | 'moderate' | 'complex';
+		dependencies?: string[]; // other task IDs this depends on
+		suggestedSchedule: {
+			preferredDate: string; // YYYY-MM-DD
+			preferredTimeSlot?: 'morning' | 'afternoon' | 'evening';
+			flexibility: 'fixed' | 'flexible' | 'whenever';
+		};
+		context: {
+			filesToOpen?: string[]; // file paths mentioned
+			relatedProjects?: string[];
+			blockers?: string[]; // things preventing progress
+		};
 	}[];
-	ambiguities?: {
-		eventId?: string;
+	questions?: {
+		taskId?: string;
 		question: string;
+		type: 'priority' | 'deadline' | 'dependencies' | 'context';
 		options?: string[];
 		required: boolean;
 	}[];
-	suggestions?: string[]; // small optimisations
+	calendarSuggestions?: {
+		taskId: string;
+		eventTitle: string;
+		suggestedDate: string; // YYYY-MM-DD
+		suggestedTime?: string; // HH:MM
+		duration: number; // minutes
+		description: string;
+	}[];
+	nextSteps: string[]; // what the assistant should do next
 };
 ```
 
 **Prompting.** System prompt steers style and structure. Example:
 
-- “Speak like a colleague. Output `DayPlan` JSON then a short human summary. Avoid rescheduling external attendees unless asked. Ask targeted questions when context looks thin.”
+- “Act as a thoughtful planning assistant. Interview the user about their Google Tasks - ask about priorities, deadlines, dependencies, and context. Output `TaskPlan` JSON with scheduling recommendations. Be curious about what makes tasks important or urgent.”
 
 **Behaviours.**
 
-- Multi‑turn: if `ambiguities[].required = true`, Orion pauses to clarify.
-- Tool hints: blocks may include `filesToOpen` or `commands`, which flow to CommandRouter.
-- Determinism: set `response_format` with JSON schema; pin a **planning template** to reduce drift.
-- Model alias: `orion-planner` → maps to `gpt-4o` initially; configurable.
+- Conversational: Always ask follow-up questions to understand task context and user preferences.
+- Multi-turn: if `questions[].required = true`, continue the conversation to gather needed information.
+- Scheduling hints: suggest specific calendar blocks based on task priority and user preferences.
+- Determinism: set `response_format` with JSON schema; pin a **conversation template** to reduce drift.
+- Model alias: `orion-interviewer` → maps to `gpt-4o` initially; configurable.
 
 ### 3.3 MCPClient (file/terminal access)
 
@@ -785,7 +805,8 @@ while session.active:
 
 - **OpenAI Agents SDK** for agent orchestration, tools, and structured outputs. ([OpenAI Platform][1], [OpenAI GitHub][2], [OpenAI GitHub][3])
 - **Model Context Protocol (MCP)** for local file/shell access via standardised tools. ([Model Context Protocol][4], [Model Context Protocol][5], [Model Context Protocol][6])
-- **Google Calendar API** for events read/write. ([Google for Developers][7], [Google for Developers][8])
+- **Google Tasks API** for task reading and management. ([Google for Developers][7])
+- **Google Calendar API** for event creation via MCP tools (Phase 1B). ([Google for Developers][8])
 - **Microsoft Graph Calendar API** for Outlook/Exchange calendars. ([Microsoft Learn][9], [Microsoft Learn][10], [Microsoft Learn][11])
 - **iCalendar RFC 5545** for `.ics` parsing. ([IETF Datatracker][12], [icalendar.org][13])
 - **Secure storage**: OS keychains (Windows Credential Manager, macOS Keychain, libsecret/gnome‑keyring), or cross‑platform vault libs.
@@ -1108,43 +1129,48 @@ while session.active:
 **User Journey Mapping.**
 
 ```
-Morning Flow:
-User: "What's my day looking like?"
-→ Orion scans calendar, identifies focus blocks and conflicts
-→ Presents structured day plan with time blocks
-→ User accepts/modifies plan
-→ Orion sets up workspace and reminders
+Task Planning Session:
+User: "Help me plan my Google Tasks"
+→ Orion reads Google Tasks: "Project Alpha demo", "Review contracts", "Team 1:1s"
+→ Orion interviews: "I see you have a Project Alpha demo task. When is this due? How complex do you think it is?"
+→ User responds: "It's due Friday, pretty complex - need 3 hours for prep"
+→ Orion follows up: "What time of day works best for focused work like this?"
+→ User: "Morning, I'm sharpest then"
+→ Orion suggests: "I recommend blocking Thursday morning 9-12 for demo prep. Should I add this to your calendar?"
 
-Mid-Day Adaptation:
-User: "My 2pm got cancelled, what should I do with that time?"
-→ Orion evaluates current context and pending tasks
-→ Suggests optimal use of freed time (deep work, prep for next meeting)
-→ User approves and Orion adjusts plan
+Priority Clarification:
+User: "I have 5 tasks and don't know what's most important"
+→ Orion reviews tasks conversationally: "Tell me about this 'Review contracts' task - what's the urgency?"
+→ User: "Legal needs it by Wednesday, it's blocking the team"
+→ Orion: "That sounds urgent. How long do you estimate for the review?"
+→ User: "Maybe 2 hours, but I need to be detail-oriented"
+→ Orion: "I'll mark this as high priority. When do you do your best detailed work?"
 
-End-of-Day Reflection:
-System: "How did today go? (quick 1-5 rating)"
-→ User provides feedback
-→ Orion learns preferences and adjusts future planning
-→ Brief next-day preview if requested
+Schedule Adjustment:
+User: "My meeting got cancelled, what should I work on?"
+→ Orion checks task priorities and suggests: "You have 'Review contracts' marked urgent for Wednesday. Want to tackle that now?"
+→ User approves and Orion provides context: "I'll open the contract folder and set a 2-hour focus timer"
 ```
 
 **Conversation Flow Patterns.**
 
-- **Progressive Disclosure**: Start with high-level plan, drill down on request
-- **Context Awareness**: Reference previous conversations and established preferences
+- **Task Discovery**: Start by reading Google Tasks, then ask open-ended questions about priorities
+- **Contextual Probing**: Ask follow-up questions about deadlines, complexity, dependencies, and user preferences
+- **Priority Triangulation**: Help users discover what's truly urgent vs. important through conversational exploration
+- **Scheduling Collaboration**: Work with user to find optimal timing based on their energy patterns and constraints
 - **Graceful Interruption**: Handle mid-conversation topic switches naturally
 - **Error Recovery**: Provide clear next steps when tasks fail
-- **Confirmation Loops**: Verify understanding before taking actions
+- **Confirmation Loops**: Verify understanding before suggesting calendar entries
 
 **Feedback Integration Points.**
 
 ```typescript
 type FeedbackTrigger =
-	| 'after_plan_generation' // "How does this plan look? (👍/👎)"
-	| 'after_task_completion' // "Did that work as expected?"
-	| 'daily_wrap_up' // "Rate today's planning (1-5)"
-	| 'feature_discovery' // "Try this new capability?"
-	| 'error_recovery'; // "What would you prefer instead?"
+	| 'after_task_interview' // "Did I understand your priorities correctly? (👍/👎)"
+	| 'after_schedule_suggestion' // "Do these time slots work for you?"
+	| 'task_completion' // "How did working on [task] go? (1-5)"
+	| 'priority_adjustment' // "Was my urgency assessment accurate?"
+	| 'interview_effectiveness'; // "Was this conversation helpful for planning?"
 
 interface UserExperience {
 	collectMicroFeedback(trigger: FeedbackTrigger, context: any): void;

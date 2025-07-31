@@ -2,7 +2,7 @@
 
 ## Hub-and-Spokes Architecture
 
-This diagram illustrates the core architectural pattern of the Orion daily planning copilot, showing how OrionCore acts as the central hub orchestrating various specialized components (spokes).
+This diagram illustrates the core architectural pattern of the Orion task planning copilot, showing how OrionCore acts as the central hub orchestrating various specialized components (spokes) for conversational task interviewing and scheduling.
 
 ```mermaid
 graph TB
@@ -13,7 +13,7 @@ graph TB
 
     %% Core Spokes
     PlannerLLM["PlannerLLM<br/>(Spoke)"]
-    CalendarParser["CalendarParser<br/>(Spoke)"]
+    TaskParser["TaskParser<br/>(Spoke)"]
     MCPClient["MCPClient<br/>(Spoke)"]
     CommandRouter["CommandRouter<br/>(Spoke)"]
     CodexHelper["CodexHelper<br/>(Optional Spoke)"]
@@ -22,10 +22,9 @@ graph TB
     SecureStore[("Secure Store")]
     AuditLog[("Audit Log")]
 
-    %% External Calendar Sources
-    GoogleCal["Google Calendar API"]
-    MSGraph["Microsoft Graph API"]
-    ICSFiles["Local .ics Files"]
+    %% External Task & Calendar Sources
+    GoogleTasks["Google Tasks API"]
+    GoogleCal["Google Calendar API<br/>(Phase 1B)"]
 
     %% MCP Servers
     MCPFileSystem["MCP Filesystem Server"]
@@ -41,7 +40,7 @@ graph TB
 
     %% Hub to Spokes Connections
     OrionCore ---|"orchestrates"| PlannerLLM
-    OrionCore ---|"manages"| CalendarParser
+    OrionCore ---|"manages"| TaskParser
     OrionCore ---|"coordinates"| MCPClient
     OrionCore ---|"routes via"| CommandRouter
     OrionCore -.-|"optional"| CodexHelper
@@ -50,10 +49,11 @@ graph TB
     OrionCore ---|"stores secrets"| SecureStore
     OrionCore ---|"logs events"| AuditLog
 
-    %% Calendar Sources to Parser
-    GoogleCal -->|"OAuth2 events"| CalendarParser
-    MSGraph -->|"Graph API events"| CalendarParser
-    ICSFiles -->|"RFC 5545 files"| CalendarParser
+    %% Task Sources to Parser
+    GoogleTasks -->|"OAuth2 tasks"| TaskParser
+
+    %% Calendar Integration (Phase 1B)
+    GoogleCal -.->|"event creation"| MCPClient
 
     %% MCP Connections
     MCPClient -->|"file operations"| MCPFileSystem
@@ -84,9 +84,9 @@ graph TB
     classDef optionalStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,stroke-dasharray: 5 5,color:#000
 
     class OrionCore hubStyle
-    class PlannerLLM,CalendarParser,MCPClient,CommandRouter spokeStyle
+    class PlannerLLM,TaskParser,MCPClient,CommandRouter spokeStyle
     class CodexHelper optionalStyle
-    class GoogleCal,MSGraph,ICSFiles,MCPFileSystem,MCPShell,MCPBrowser,OpenAISDK,GPT4o,Claude35,ClaudeCodeSDK,Claude4 externalStyle
+    class GoogleTasks,GoogleCal,MCPFileSystem,MCPShell,MCPBrowser,OpenAISDK,GPT4o,Claude35,ClaudeCodeSDK,Claude4 externalStyle
     class SecureStore,AuditLog storageStyle
 ```
 
@@ -98,8 +98,8 @@ graph TB
 
 ### Core Spokes
 
-- **PlannerLLM**: Generates structured day plans (DayPlan JSON) from calendar context and user preferences
-- **CalendarParser**: Normalizes events from Google Calendar, Microsoft Graph, and local .ics files into unified Event[] format
+- **PlannerLLM**: Conducts conversational task interviews and generates structured task plans (TaskPlan JSON) with scheduling recommendations
+- **TaskParser**: Reads and normalizes tasks from Google Tasks API into unified Task[] format
 - **MCPClient**: Gateway to local capabilities via Model Context Protocol servers (file system, shell access)
 - **CommandRouter**: Classifies LLM intents, performs risk scoring, and routes commands to appropriate MCP tools with approval gates
 
@@ -114,22 +114,24 @@ graph TB
 
 ### External Integrations
 
-- **Calendar APIs**: Google Calendar API v3, Microsoft Graph Calendar API, and local iCalendar (.ics) file support
+- **Task APIs**: Google Tasks API v1 for reading task lists and items
+- **Calendar APIs**: Google Calendar API v3 for event creation (Phase 1B via MCP)
 - **AI Models**: Primary GPT-4o via OpenAI Agents SDK with Claude 3.5 Sonnet as planning fallback, and Claude-4-Sonnet via Claude Code SDK for advanced coding capabilities
 - **MCP Servers**: Built-in filesystem, shell, and web browsing servers for local system access
 
 ## Data Flow
 
-1. **Ingest**: Calendar sources → CalendarParser → OrionCore context
-2. **Plan**: User request → PlannerLLM (JSON structured output) → OrionCore
-3. **Clarify**: Multi-turn loop for ambiguous events
-4. **Act**: CommandRouter → MCPClient tools (filesystem/shell operations)
-5. **Write-back**: Optional calendar event creation/modification via provider APIs
-6. **Persist**: Store preferences, scopes, and audit logs
+1. **Ingest**: Google Tasks API → TaskParser → OrionCore context
+2. **Interview**: User request → PlannerLLM (conversational task prioritization) → OrionCore
+3. **Clarify**: Multi-turn loop for task context and priority exploration
+4. **Analyze**: PlannerLLM generates TaskPlan with scheduling recommendations
+5. **Act**: CommandRouter → MCPClient tools (filesystem/shell operations for task context)
+6. **Schedule** (Phase 1B): Create calendar events via MCPClient → CommandRouter approvals
+7. **Persist**: Store task analysis, preferences, and conversation history
 
 ## Architecture Benefits
 
-- **Separation of Concerns**: Each spoke handles a specific domain (calendars, planning, execution)
+- **Separation of Concerns**: Each spoke handles a specific domain (tasks, conversational planning, execution)
 - **Extensibility**: New spokes can be added without modifying the hub
 - **Security**: Centralized approval and audit logging through the hub
 - **Testability**: Individual spokes can be tested in isolation

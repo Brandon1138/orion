@@ -80,7 +80,120 @@ We will adopt a **TypeScript monorepo architecture** with separate packages for 
 
 ---
 
-_Created: July 30, 2025_  
-_Author: Brandon Aron_  
-_Version: 1.0_  
+_Created: July 30, 2025_
+_Author: Brandon Aron_
+_Version: 1.0_
+_Next Review: Phase 1B completion_
+
+## ADR-002: Shift from Calendar-Reactive to Task-Proactive Planning Architecture
+
+### Status:
+
+Accepted
+
+### Context:
+
+The original Orion architecture (ADR-001) was designed around a **calendar-reactive** planning approach where the system would:
+
+1. Parse existing calendar events from multiple providers (Google Calendar, Microsoft Graph, .ics files)
+2. Generate day plans by filling gaps between calendar events with focus blocks
+3. Optimize around existing calendar commitments
+
+However, during Phase 1A implementation and user research, several critical limitations emerged:
+
+- **Limited User Control**: Users couldn't express task priorities or preferences that should influence scheduling
+- **Passive Planning**: The system reacted to calendars instead of helping users proactively manage their tasks
+- **Missing Context**: No visibility into user's actual work tasks, deadlines, or project dependencies
+- **Poor Task Management Integration**: Most users manage tasks in dedicated systems (Google Tasks, Todoist, etc.) separate from calendars
+- **Inflexible Workflow**: Users wanted conversational planning where they could discuss priorities and get scheduling recommendations
+
+The existing `@orion/calendar-parser` package provided excellent calendar integration but didn't address the core user need: **"Help me understand what tasks I should work on and when."**
+
+Research indicated users prefer a **task-proactive** approach:
+
+1. Import tasks from task management systems (Google Tasks initially)
+2. Conduct conversational interviews to understand priorities, complexity, and constraints
+3. Generate task plans with specific scheduling recommendations
+4. Optionally create calendar entries based on the task plan
+
+### Decision:
+
+We will **pivot from calendar-reactive to task-proactive planning architecture** with the following changes:
+
+**Package Changes:**
+
+- **Rename** `@orion/calendar-parser` → `@orion/task-parser` with Google Tasks integration
+- **Update** `@orion/planner-llm` to use TaskPlan v1 schema instead of DayPlan schema
+- **Implement** conversational interview-first planning in PlannerLLM
+- **Maintain** calendar integration as Phase 1B feature for task scheduling execution
+
+**Core Workflow Changes:**
+
+1. **Task Reading**: TaskParser loads tasks from Google Tasks API with OAuth2 authentication
+2. **Conversational Interview**: PlannerLLM conducts multi-turn conversations to understand:
+   - Task priorities and urgency levels
+   - Time estimates and complexity assessment
+   - Dependencies between tasks
+   - Scheduling preferences and constraints
+   - Context about deadlines and blockers
+3. **Task Plan Generation**: Structured TaskPlan v1 JSON output with:
+   - Task analysis (priority, duration, complexity)
+   - Follow-up questions for clarification
+   - Calendar suggestions for scheduling
+   - Next steps for assistant actions
+4. **Calendar Suggestions**: Recommend specific calendar entries instead of reactive planning
+
+**Technical Implementation:**
+
+- **TaskPlan v1 Schema**: New structured output format optimized for conversational task planning
+- **Interview-First System Prompt**: Sophisticated LLM prompting for task prioritization discussions
+- **Google Tasks API Integration**: OAuth2 authentication with tasks.readonly scope
+- **State Management**: Conversation history tracking for multi-turn interviews
+- **Fallback Systems**: Graceful degradation when APIs are unavailable
+
+### Consequences:
+
+**Pros:**
+
+- **User-Centric Planning**: Focuses on what users actually need to accomplish rather than working around existing calendars
+- **Conversational Interface**: Natural interaction pattern that helps users think through priorities
+- **Task Management Integration**: Leverages existing user workflows in task management systems
+- **Flexible Scheduling**: Users can discuss and adjust task scheduling recommendations
+- **Better Context**: Rich task information (notes, due dates, subtasks) informs better planning decisions
+- **Proactive Approach**: Helps users identify what they should work on, not just when they're free
+- **Extensible**: Foundation for integrating additional task sources (Todoist, Asana, etc.)
+
+**Cons:**
+
+- **Breaking Change**: Requires updating all existing integrations and CLI commands
+- **Increased Complexity**: Conversational state management and multi-turn interviews add complexity
+- **API Dependencies**: Reliance on Google Tasks API introduces additional failure points
+- **User Onboarding**: Users need to connect task management accounts and learn new interaction patterns
+- **Limited Calendar Integration**: Less sophisticated calendar parsing in initial implementation
+
+**Migration Strategy:**
+
+- **Phase 1A**: Complete task-proactive implementation with Google Tasks
+- **Phase 1B**: Add calendar integration as execution layer (create calendar entries from task plans)
+- **Backward Compatibility**: Maintain legacy DayPlan types for gradual migration
+- **Documentation**: Update all specifications and user guides for new workflow
+
+**Risk Mitigation:**
+
+- **Fallback Planning**: Generate basic task plans when LLM services are unavailable
+- **OAuth2 Implementation**: Robust authentication handling with token refresh
+- **Gradual Migration**: Maintain existing functionality while introducing new workflow
+- **Comprehensive Testing**: Mock conversations and edge case handling
+
+**Technical Debt Considerations:**
+
+- **Legacy Code**: Existing calendar-parser code may need gradual deprecation
+- **Type System**: Dual support for both DayPlan and TaskPlan schemas temporarily increases complexity
+- **CLI Commands**: Need to update all commands to support new task-based workflow
+
+---
+
+_Created: January 31, 2025_
+_Author: System Architect_
+_Version: 1.0_
 _Next Review: Phase 1B completion_

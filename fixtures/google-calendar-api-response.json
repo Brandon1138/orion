@@ -1,0 +1,230 @@
+{
+	"kind": "calendar#events",
+	"etag": "\"p32cc9osd2gsruo0o\"",
+	"summary": "primary",
+	"timeZone": "America/New_York",
+	"items": [
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000000\"",
+			"id": "abc123def456ghi789jkl012",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=abc123",
+			"created": "2025-01-15T10:30:00.000Z",
+			"updated": "2025-01-15T10:30:00.000Z",
+			"summary": "Weekly Standup",
+			"description": "Team standup meeting to discuss progress and blockers",
+			"location": "Conference Room A",
+			"creator": {
+				"email": "manager@example.com",
+				"displayName": "Team Manager"
+			},
+			"organizer": {
+				"email": "manager@example.com",
+				"displayName": "Team Manager"
+			},
+			"start": {
+				"dateTime": "2025-07-31T09:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"end": {
+				"dateTime": "2025-07-31T09:30:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"attendees": [
+				{
+					"email": "alice@example.com",
+					"displayName": "Alice Smith",
+					"responseStatus": "accepted"
+				},
+				{
+					"email": "bob@example.com",
+					"displayName": "Bob Johnson",
+					"responseStatus": "tentative"
+				}
+			],
+			"transparency": "opaque"
+		},
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000001\"",
+			"id": "def456ghi789jkl012mno345",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=def456",
+			"created": "2025-01-15T11:00:00.000Z",
+			"updated": "2025-01-15T11:00:00.000Z",
+			"summary": "Catch-up with Sam",
+			"creator": {
+				"email": "user@example.com",
+				"displayName": "Current User"
+			},
+			"organizer": {
+				"email": "user@example.com",
+				"displayName": "Current User"
+			},
+			"start": {
+				"dateTime": "2025-07-31T11:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"end": {
+				"dateTime": "2025-07-31T11:30:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"attendees": [
+				{
+					"email": "sam@example.com",
+					"displayName": "Sam Wilson"
+				}
+			]
+		},
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000002\"",
+			"id": "ghi789jkl012mno345pqr678",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=ghi789",
+			"created": "2025-01-15T12:00:00.000Z",
+			"updated": "2025-01-15T12:00:00.000Z",
+			"summary": "Private Meeting",
+			"description": "Confidential discussion",
+			"location": "Executive Office",
+			"visibility": "private",
+			"creator": {
+				"email": "user@example.com",
+				"displayName": "Current User"
+			},
+			"organizer": {
+				"email": "user@example.com",
+				"displayName": "Current User"
+			},
+			"start": {
+				"dateTime": "2025-07-31T13:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"end": {
+				"dateTime": "2025-07-31T14:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"attendees": [
+				{
+					"email": "ceo@example.com",
+					"displayName": "CEO",
+					"responseStatus": "accepted"
+				}
+			]
+		},
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000003\"",
+			"id": "jkl012mno345pqr678stu901",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=jkl012",
+			"created": "2025-01-15T13:00:00.000Z",
+			"updated": "2025-01-15T13:00:00.000Z",
+			"summary": "Company Holiday",
+			"description": "Independence Day - Office Closed",
+			"transparency": "transparent",
+			"creator": {
+				"email": "hr@example.com",
+				"displayName": "HR Department"
+			},
+			"organizer": {
+				"email": "hr@example.com",
+				"displayName": "HR Department"
+			},
+			"start": {
+				"date": "2025-07-04"
+			},
+			"end": {
+				"date": "2025-07-05"
+			}
+		},
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000004\"",
+			"id": "mno345pqr678stu901vwx234",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=mno345",
+			"created": "2025-01-15T14:00:00.000Z",
+			"updated": "2025-01-15T14:00:00.000Z",
+			"summary": "Daily Scrum",
+			"description": "Daily team synchronization meeting",
+			"location": "Virtual - Zoom Room 123",
+			"creator": {
+				"email": "scrummaster@example.com",
+				"displayName": "Scrum Master"
+			},
+			"organizer": {
+				"email": "scrummaster@example.com",
+				"displayName": "Scrum Master"
+			},
+			"start": {
+				"dateTime": "2025-07-31T10:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"end": {
+				"dateTime": "2025-07-31T10:15:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"recurrence": ["RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"],
+			"attendees": [
+				{
+					"email": "dev1@example.com",
+					"displayName": "Developer 1",
+					"responseStatus": "accepted"
+				},
+				{
+					"email": "dev2@example.com",
+					"displayName": "Developer 2",
+					"responseStatus": "accepted"
+				},
+				{
+					"email": "dev3@example.com",
+					"displayName": "Developer 3",
+					"responseStatus": "tentative"
+				}
+			]
+		},
+		{
+			"kind": "calendar#event",
+			"etag": "\"3123456789000005\"",
+			"id": "pqr678stu901vwx234yzab567",
+			"status": "confirmed",
+			"htmlLink": "https://www.google.com/calendar/event?eid=pqr678",
+			"created": "2025-01-15T15:00:00.000Z",
+			"updated": "2025-01-15T15:00:00.000Z",
+			"summary": "Board Meeting",
+			"description": "Quarterly board meeting",
+			"location": "Boardroom - 42nd Floor",
+			"visibility": "confidential",
+			"creator": {
+				"email": "executive-assistant@example.com",
+				"displayName": "Executive Assistant"
+			},
+			"organizer": {
+				"email": "executive-assistant@example.com",
+				"displayName": "Executive Assistant"
+			},
+			"start": {
+				"dateTime": "2025-07-31T16:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"end": {
+				"dateTime": "2025-07-31T17:00:00-05:00",
+				"timeZone": "America/New_York"
+			},
+			"attendees": [
+				{
+					"email": "board1@example.com",
+					"displayName": "Board Member 1",
+					"responseStatus": "accepted"
+				},
+				{
+					"email": "board2@example.com",
+					"displayName": "Board Member 2",
+					"responseStatus": "accepted"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,177 @@
+[
+	{
+		"id": "g-001",
+		"provider": "google",
+		"title": "Weekly Standup",
+		"description": "Team standup meeting",
+		"start": "2025-07-31T09:00:00-05:00",
+		"end": "2025-07-31T09:30:00-05:00",
+		"allDay": false,
+		"location": "Conference Room A",
+		"attendees": [
+			{ "email": "alice@example.com", "response": "yes" },
+			{ "email": "bob@example.com", "response": "maybe" }
+		],
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=abc123"
+	},
+	{
+		"id": "g-002",
+		"provider": "google",
+		"title": "Catch-up with Sam",
+		"description": null,
+		"start": "2025-07-31T11:00:00-05:00",
+		"end": "2025-07-31T11:30:00-05:00",
+		"allDay": false,
+		"location": null,
+		"attendees": [{ "email": "sam@example.com" }],
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=def456"
+	},
+	{
+		"id": "g-003",
+		"provider": "google",
+		"title": "Private Event",
+		"description": "Confidential meeting details",
+		"start": "2025-07-31T13:00:00-05:00",
+		"end": "2025-07-31T14:00:00-05:00",
+		"allDay": false,
+		"location": "Executive Office",
+		"attendees": [{ "email": "ceo@example.com", "response": "yes" }],
+		"transparency": "busy",
+		"sensitivity": "private",
+		"sourceUri": "https://calendar.google.com/event?eid=ghi789"
+	},
+	{
+		"id": "g-004",
+		"provider": "google",
+		"title": "Deep Work Block",
+		"description": "Focus time for feature development",
+		"start": "2025-07-31T14:00:00-05:00",
+		"end": "2025-07-31T16:00:00-05:00",
+		"allDay": false,
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=jkl012"
+	},
+	{
+		"id": "g-005",
+		"provider": "google",
+		"title": "Team Retreat Planning",
+		"description": "Planning session for upcoming team retreat",
+		"start": "2025-07-31T14:30:00-05:00",
+		"end": "2025-07-31T15:30:00-05:00",
+		"allDay": false,
+		"location": "Meeting Room B",
+		"attendees": [
+			{ "email": "manager@example.com", "response": "yes" },
+			{ "email": "alice@example.com", "response": "no" },
+			{ "email": "bob@example.com", "response": "maybe" }
+		],
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=mno345"
+	},
+	{
+		"id": "g-006",
+		"provider": "google",
+		"title": "Company Holiday",
+		"description": "Independence Day - Office Closed",
+		"start": "2025-07-04T00:00:00-05:00",
+		"end": "2025-07-05T00:00:00-05:00",
+		"allDay": true,
+		"transparency": "free",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=pqr678"
+	},
+	{
+		"id": "g-007",
+		"provider": "google",
+		"title": "Flight to Conference",
+		"description": "Flight AA1234 to San Francisco for TechConf 2025",
+		"start": "2025-08-01T08:00:00-05:00",
+		"end": "2025-08-01T12:30:00-08:00",
+		"allDay": false,
+		"location": "ORD → SFO",
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=stu901"
+	},
+	{
+		"id": "g-008",
+		"provider": "google",
+		"title": "Daily Scrum",
+		"description": "Daily team sync-up",
+		"start": "2025-07-31T10:00:00-05:00",
+		"end": "2025-07-31T10:15:00-05:00",
+		"allDay": false,
+		"location": "Virtual - Zoom",
+		"attendees": [
+			{ "email": "team1@example.com", "response": "yes" },
+			{ "email": "team2@example.com", "response": "yes" },
+			{ "email": "team3@example.com", "response": "maybe" }
+		],
+		"recurrence": "RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR",
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=vwx234"
+	},
+	{
+		"id": "g-009",
+		"provider": "google",
+		"title": "Confidential Event",
+		"description": "Board meeting details",
+		"start": "2025-07-31T16:00:00-05:00",
+		"end": "2025-07-31T17:00:00-05:00",
+		"allDay": false,
+		"location": "Boardroom",
+		"attendees": [{ "email": "board1@example.com", "response": "yes" }],
+		"transparency": "busy",
+		"sensitivity": "confidential",
+		"sourceUri": "https://calendar.google.com/event?eid=yzab567"
+	},
+	{
+		"id": "g-010",
+		"provider": "google",
+		"title": "Lunch Break",
+		"description": "Scheduled lunch break",
+		"start": "2025-07-31T12:00:00-05:00",
+		"end": "2025-07-31T13:00:00-05:00",
+		"allDay": false,
+		"transparency": "free",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=cdef890"
+	},
+	{
+		"id": "g-011",
+		"provider": "google",
+		"title": "Client Demo",
+		"description": "Product demonstration for ProspectCorp",
+		"start": "2025-07-31T15:00:00-05:00",
+		"end": "2025-07-31T16:00:00-05:00",
+		"allDay": false,
+		"location": "Demo Room",
+		"attendees": [
+			{ "email": "client@prospectcorp.com", "response": "yes" },
+			{ "email": "sales@example.com", "response": "yes" },
+			{ "email": "demo-engineer@example.com", "response": "yes" }
+		],
+		"transparency": "busy",
+		"sensitivity": "normal",
+		"sourceUri": "https://calendar.google.com/event?eid=ghij123"
+	},
+	{
+		"id": "g-012",
+		"provider": "google",
+		"title": "Birthday - John Doe",
+		"start": "2025-07-31T00:00:00-05:00",
+		"end": "2025-08-01T00:00:00-05:00",
+		"allDay": true,
+		"transparency": "free",
+		"sensitivity": "normal",
+		"recurrence": "RRULE:FREQ=YEARLY",
+		"sourceUri": "https://calendar.google.com/event?eid=klmn456"
+	}
+]

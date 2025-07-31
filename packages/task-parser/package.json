@@ -1,0 +1,23 @@
+{
+	"name": "@orion/task-parser",
+	"version": "1.0.0",
+	"description": "Unified task parsing for Google Tasks and other task management systems",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest",
+		"lint": "echo 'Linting not yet configured'"
+	},
+	"dependencies": {
+		"googleapis": "^126.0.0",
+		"keytar": "^7.9.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.3.0",
+		"vitest": "^1.6.0",
+		"@types/node": "^20.10.0"
+	}
+}

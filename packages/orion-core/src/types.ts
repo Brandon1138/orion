@@ -4,7 +4,35 @@
  */
 
 import type { CalendarConfig, Event } from '@orion/calendar-parser';
-import type { DayPlan } from '@orion/planner-llm';
+import type { TaskPlan } from '@orion/planner-llm';
+
+// Legacy DayPlan interface for backward compatibility
+export interface DayPlan {
+	date: string;
+	summary: string;
+	blocks: PlanBlock[];
+	ambiguities?: Ambiguity[];
+	suggestions?: string[];
+}
+
+export interface PlanBlock {
+	start: string;
+	end: string;
+	label: string;
+	type: 'meeting' | 'focus' | 'break' | 'admin' | 'commute' | 'exercise' | 'errand' | 'sleep';
+	dependsOn?: string[];
+	linkedEvents?: string[];
+	filesToOpen?: string[];
+	commands?: string[];
+	risk?: 'low' | 'medium' | 'high';
+}
+
+export interface Ambiguity {
+	eventId?: string;
+	question: string;
+	options?: string[];
+	required: boolean;
+}
 
 export type SessionState = 'idle' | 'context_build' | 'plan_draft' | 'clarify' | 'apply' | 'review';
 
@@ -65,6 +93,7 @@ export interface SessionContext {
 	pattern: ConversationPattern;
 	messages: Message[];
 	currentPlan?: DayPlan;
+	currentTaskPlan?: TaskPlan;
 	events: Event[];
 	preferences: Record<string, unknown>;
 	startTime: Date;

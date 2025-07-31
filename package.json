@@ -24,8 +24,12 @@
 		"update:check": "npm-check-updates --interactive",
 		"dependency:matrix": "node scripts/check-compatibility.js"
 	},
+	"workspaces": [
+		"packages/*"
+	],
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.56.0",
+		"dotenv": "^17.2.1",
 		"googleapis": "^126.0.0",
 		"ical.js": "^2.0.1",
 		"openai": "^4.50.0"
