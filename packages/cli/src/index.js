@@ -11,6 +11,7 @@ import OrionCore from '@orion/core';
 export class OrionCLI {
     orion;
     sessionId;
+    config;
     async run() {
         const program = new Command();
         program.name('orion').description('Orion - Daily Planning Copilot').version('1.0.0 (Phase 1A)');
@@ -26,9 +27,11 @@ export class OrionCLI {
         program
             .command('chat')
             .description('Start interactive chat session')
-            .action(async () => {
+            .option('--dry-run', 'Run chat without calling external APIs')
+            .option('-m, --message <message>', 'Run a single-turn chat with the provided message and exit')
+            .action(async (options) => {
             await this.initializeOrion();
-            await this.handleChatCommand();
+            await this.handleChatCommand(options);
         });
         program
             .command('agent-chat')
@@ -47,7 +50,7 @@ export class OrionCLI {
 Examples:
   $ orion interview-tasks
   $ orion interview-tasks --all-lists --include-completed
-  
+
 This command starts a conversational interview where Orion will:
 1. Read your Google Tasks
 2. Ask questions about priorities, deadlines, and complexity
@@ -67,7 +70,7 @@ Examples:
   $ orion read-tasks
   $ orion read-tasks --format summary
   $ orion read-tasks --include-completed --format json
-  
+
 Displays your Google Tasks in various formats for review before planning.`)
             .action(async (options) => {
             await this.initializeOrion();
@@ -84,7 +87,7 @@ Examples:
   $ orion task-plan
   $ orion task-plan --date 2025-02-01
   $ orion task-plan --user-message "Focus on urgent deadlines"
-  
+
 Generates a structured TaskPlan with priority analysis and calendar suggestions.`)
             .action(async (options) => {
             await this.initializeOrion();
@@ -93,8 +96,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         program
             .command('status')
             .description('Show Orion status and configuration')
-            .action(() => {
-            this.showStatusCommand();
+            .action(async () => {
+            await this.showStatusCommand();
         });
         program
             .command('audit')
@@ -118,8 +121,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             .description('Authentication management')
             .option('--google-tasks', 'Set up Google Tasks authentication')
             .option('--status', 'Show authentication status')
-            .action((options) => {
-            this.handleAuthCommand(options);
+            .action(async (options) => {
+            await this.handleAuthCommand(options);
         });
         await program.parseAsync();
     }
@@ -129,6 +132,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         try {
             console.log(chalk.blue('🚀 Initializing Orion...'));
             const config = await this.loadConfig();
+            this.config = config;
             this.orion = new OrionCore(config);
             this.sessionId = this.orion.startSession('cli-user');
             console.log(chalk.green('✅ Orion initialized successfully!'));
@@ -172,8 +176,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
                     ics: [],
                 },
                 agents: {
-                    plannerModel: 'gpt-4o',
-                    plannerTemperature: 0.2,
+                    plannerModel: 'gpt-5-nano',
                     fallbackModel: 'claude-3-5-sonnet',
                     codexEnabled: false,
                 },
@@ -222,10 +225,29 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Failed to generate plan:'), error);
         }
     }
-    async handleChatCommand() {
+    async handleChatCommand(options) {
         if (!this.orion || !this.sessionId) {
             console.error(chalk.red('❌ Orion not initialized'));
             return;
+        }
+        if (options?.message) {
+            // One-shot, non-interactive mode
+            try {
+                if (options['dry-run']) {
+                    const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
+                    const reply = "Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
+                        `I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
+                    console.log(chalk.green('Orion:'), reply);
+                    return;
+                }
+                const response = await this.orion.processMessage(this.sessionId, options.message);
+                console.log(chalk.green('Orion:'), response);
+                return;
+            }
+            catch (error) {
+                console.error(chalk.red('❌ Error:'), error);
+                return;
+            }
         }
         console.log(chalk.green('💬 Starting interactive chat with Orion'));
         console.log(chalk.gray('Type "exit" or "quit" to end the session\n'));
@@ -247,9 +269,19 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
             if (typeof message === 'string') {
                 try {
-                    const response = await this.orion.processMessage(this.sessionId, message);
-                    console.log(chalk.green('Orion:'), response);
-                    console.log('');
+                    if (options?.['dry-run']) {
+                        // Simulate a helpful response without API calls
+                        const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
+                        const reply = "Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
+                            `I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
+                        console.log(chalk.green('Orion:'), reply);
+                        console.log('');
+                    }
+                    else {
+                        const response = await this.orion.processMessage(this.sessionId, message);
+                        console.log(chalk.green('Orion:'), response);
+                        console.log('');
+                    }
                 }
                 catch (error) {
                     console.error(chalk.red('❌ Error:'), error);
@@ -294,13 +326,24 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
         }
     }
-    showStatusCommand() {
+    async showStatusCommand() {
         console.log(chalk.blue('📊 Orion Status'));
         console.log(chalk.gray('='.repeat(50)));
         console.log(`${chalk.cyan('Version:')} 1.0.0 (Phase 1A + Chunk 3.3 Complete)`);
         console.log(`${chalk.cyan('Status:')} ${chalk.green('Ready with Google Tasks Integration')}`);
         console.log(`${chalk.cyan('Features:')} Google Tasks, Task Interviewing, TaskPlan Generation, Agents SDK`);
         console.log(`${chalk.cyan('Config:')} ${process.env.ORION_CONFIG ?? './orion.config.json'}`);
+        if (!this.config) {
+            try {
+                this.config = await this.loadConfig();
+            }
+            catch {
+                // ignore
+            }
+        }
+        if (this.config?.agents?.plannerModel) {
+            console.log(`${chalk.cyan('Default Model:')} ${chalk.magenta(this.config.agents.plannerModel)}`);
+        }
         // Check environment
         console.log(`\n${chalk.blue('🔧 Environment:')}`);
         console.log(`${chalk.cyan('Node.js:')} ${process.version}`);
@@ -403,7 +446,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         }
     }
     async handleAuthCommand(options) {
-        if (options['google-tasks']) {
+        if (options.googleTasks) {
             console.log(chalk.blue('🔐 Google Tasks Authentication Setup'));
             console.log(chalk.gray('='.repeat(50)));
             if (!this.orion) {
@@ -455,7 +498,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.log(chalk.gray('Run: orion auth --google-tasks to set up Google Tasks authentication'));
         }
         // If no specific options, show help
-        if (!options['google-tasks'] && !options.status) {
+        if (!options.googleTasks && !options.status) {
             console.log(chalk.blue('🔐 Authentication Management'));
             console.log(chalk.gray('Available auth options:'));
             console.log('  --google-tasks   Set up Google Tasks OAuth2 authentication');

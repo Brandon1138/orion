@@ -3,6 +3,8 @@
  * Task interviewing workflow with Google Tasks integration
  */
 import 'dotenv/config';
+import { mkdir, appendFile } from 'fs/promises';
+import { dirname } from 'path';
 import OpenAI from 'openai';
 import { CalendarParser } from '@orion/calendar-parser';
 import { TaskParser } from '@orion/task-parser';
@@ -35,7 +37,7 @@ export class OrionCore {
         });
         this.plannerLLM = new PlannerLLM({
             model: config.agents.plannerModel,
-            temperature: config.agents.plannerTemperature,
+            temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
             fallbackModel: config.agents.fallbackModel,
         });
         // Initialize MCP client with policy
@@ -1165,9 +1167,19 @@ Type your request and I'll help you understand and plan your tasks using advance
             result: { ok: true },
             hash: this.generateHash(action + JSON.stringify(args)),
         };
-        // Phase 1A: Console logging, file logging in next phase
+        // Console logging for visibility in development
         if (this.config.mvp.debugMode) {
             console.warn(`[AUDIT] ${event.ts} - ${action}:`, args);
+        }
+        // Append audit event to file (JSONL). Best-effort; do not throw.
+        try {
+            const logPath = this.config.audit?.path || './logs/audit.jsonl';
+            const dir = dirname(logPath);
+            // Fire-and-forget to avoid blocking critical paths
+            void mkdir(dir, { recursive: true }).then(() => appendFile(logPath, `${JSON.stringify(event)}\n`).catch(() => { }));
+        }
+        catch {
+            // ignore audit file errors
         }
     }
     /**

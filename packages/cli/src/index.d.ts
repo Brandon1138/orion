@@ -6,6 +6,7 @@ import 'dotenv/config';
 export declare class OrionCLI {
     private orion?;
     private sessionId?;
+    private config?;
     run(): Promise<void>;
     private initializeOrion;
     private loadConfig;

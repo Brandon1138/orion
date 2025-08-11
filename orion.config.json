@@ -30,8 +30,7 @@
 		"ics": []
 	},
 	"agents": {
-		"plannerModel": "gpt-4o",
-		"plannerTemperature": 0.2,
+		"plannerModel": "gpt-5-nano",
 		"fallbackModel": "claude-3-5-sonnet",
 		"codexEnabled": false,
 		"conversationPatterns": {

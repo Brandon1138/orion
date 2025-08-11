@@ -141,7 +141,7 @@ const TASKPLAN_SCHEMA = {
 					options: { type: 'array', items: { type: 'string' } },
 					required: { type: 'boolean' },
 				},
-				required: ['question', 'type', 'required'],
+				required: ['taskId', 'question', 'type', 'required'],
 				additionalProperties: false,
 			},
 		},
@@ -184,6 +184,12 @@ export class PlannerLLM {
 		});
 	}
 
+	private supportsTemperature(model: string): boolean {
+		// GPT-5 nano only supports the default temperature of 1 and rejects custom values
+		// Return false to omit the temperature parameter for this model family
+		return !/gpt-5-nano/i.test(model);
+	}
+
 	/**
 	 * Generate a structured day plan using LLM
 	 * Phase 1A: OpenAI structured outputs with fallback handling
@@ -193,9 +199,8 @@ export class PlannerLLM {
 			const systemPrompt = this.buildSystemPrompt();
 			const userPrompt = this.buildUserPrompt(context);
 
-			const completion = await this.openai.chat.completions.create({
+			const requestBase: any = {
 				model: this.config.model,
-				temperature: this.config.temperature,
 				messages: [
 					{
 						role: 'system',
@@ -215,7 +220,13 @@ export class PlannerLLM {
 						strict: true,
 					},
 				},
-			});
+			};
+
+			if (this.supportsTemperature(this.config.model)) {
+				requestBase.temperature = this.config.temperature;
+			}
+
+			const completion = await this.openai.chat.completions.create(requestBase);
 
 			const responseContent = completion.choices[0]?.message?.content;
 			if (!responseContent) {
@@ -262,9 +273,8 @@ export class PlannerLLM {
 		const systemPrompt = this.buildSystemPrompt();
 		const userPrompt = this.buildUserPrompt(context);
 
-		const completion = await this.openai.chat.completions.create({
+		const requestBase: any = {
 			model: this.config.fallbackModel!,
-			temperature: this.config.temperature,
 			messages: [
 				{
 					role: 'system',
@@ -284,7 +294,13 @@ export class PlannerLLM {
 					strict: true,
 				},
 			},
-		});
+		};
+
+		if (this.supportsTemperature(this.config.fallbackModel!)) {
+			requestBase.temperature = this.config.temperature;
+		}
+
+		const completion = await this.openai.chat.completions.create(requestBase);
 
 		const responseContent = completion.choices[0]?.message?.content;
 		if (!responseContent) {
@@ -459,9 +475,8 @@ export class PlannerLLM {
 			const systemPrompt = this.buildConversationalPrompt(input);
 			const userPrompt = this.buildTaskInterviewPrompt(input);
 
-			const completion = await this.openai.chat.completions.create({
+			const requestBase: any = {
 				model: this.config.model,
-				temperature: adjustedTemperature,
 				messages: [
 					{
 						role: 'system',
@@ -481,7 +496,13 @@ export class PlannerLLM {
 						strict: true,
 					},
 				},
-			});
+			};
+
+			if (this.supportsTemperature(this.config.model)) {
+				requestBase.temperature = adjustedTemperature;
+			}
+
+			const completion = await this.openai.chat.completions.create(requestBase);
 
 			const responseContent = completion.choices[0]?.message?.content;
 			if (!responseContent) {

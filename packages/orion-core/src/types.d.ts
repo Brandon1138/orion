@@ -56,7 +56,7 @@ export interface OrionConfig {
     calendars: CalendarConfig;
     agents: {
         plannerModel: string;
-        plannerTemperature: number;
+        plannerTemperature?: number;
         fallbackModel: string;
         codexEnabled: boolean;
     };

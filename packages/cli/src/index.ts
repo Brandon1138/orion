@@ -11,6 +11,7 @@ import { readFile } from 'fs/promises';
 import type { OrionConfig } from '@orion/core';
 import type { TaskPlan, TaskAnalysis, TaskQuestion, CalendarSuggestion } from '@orion/planner-llm';
 import type { Task, TaskContext } from '@orion/task-parser';
+import { TaskParser } from '@orion/task-parser';
 import OrionCore from '@orion/core';
 
 // Import legacy types for CLI display
@@ -29,6 +30,7 @@ interface PlanBlock {
 export class OrionCLI {
 	private orion?: OrionCore;
 	private sessionId?: string;
+	private config?: OrionConfig;
 
 	async run(): Promise<void> {
 		const program = new Command();
@@ -52,9 +54,14 @@ export class OrionCLI {
 		program
 			.command('chat')
 			.description('Start interactive chat session')
-			.action(async () => {
+			.option('--dry-run', 'Run chat without calling external APIs')
+			.option(
+				'-m, --message <message>',
+				'Run a single-turn chat with the provided message and exit'
+			)
+			.action(async (options: { 'dry-run'?: boolean; message?: string }) => {
 				await this.initializeOrion();
-				await this.handleChatCommand();
+				await this.handleChatCommand(options);
 			});
 
 		program
@@ -71,15 +78,18 @@ export class OrionCLI {
 			.description('Start conversational interview about your Google Tasks')
 			.option('--all-lists', 'Include all task lists (default: primary only)')
 			.option('--include-completed', 'Include completed tasks in analysis')
-			.addHelpText('after', `
+			.addHelpText(
+				'after',
+				`
 Examples:
   $ orion interview-tasks
   $ orion interview-tasks --all-lists --include-completed
-  
+
 This command starts a conversational interview where Orion will:
 1. Read your Google Tasks
 2. Ask questions about priorities, deadlines, and complexity
-3. Generate a structured TaskPlan with scheduling recommendations`)
+3. Generate a structured TaskPlan with scheduling recommendations`
+			)
 			.action(async (options: { 'all-lists'?: boolean; 'include-completed'?: boolean }) => {
 				await this.initializeOrion();
 				await this.handleInterviewTasksCommand(options);
@@ -91,13 +101,16 @@ This command starts a conversational interview where Orion will:
 			.option('--list-id <id>', 'Specific task list ID to read')
 			.option('--include-completed', 'Include completed tasks')
 			.option('--format <format>', 'Output format: table, json, summary', 'table')
-			.addHelpText('after', `
+			.addHelpText(
+				'after',
+				`
 Examples:
   $ orion read-tasks
   $ orion read-tasks --format summary
   $ orion read-tasks --include-completed --format json
-  
-Displays your Google Tasks in various formats for review before planning.`)
+
+Displays your Google Tasks in various formats for review before planning.`
+			)
 			.action(
 				async (options: { 'list-id'?: string; 'include-completed'?: boolean; format?: string }) => {
 					await this.initializeOrion();
@@ -115,13 +128,16 @@ Displays your Google Tasks in various formats for review before planning.`)
 				new Date().toISOString().split('T')[0]
 			)
 			.option('--user-message <message>', 'Initial user message for planning context')
-			.addHelpText('after', `
+			.addHelpText(
+				'after',
+				`
 Examples:
   $ orion task-plan
   $ orion task-plan --date 2025-02-01
   $ orion task-plan --user-message "Focus on urgent deadlines"
-  
-Generates a structured TaskPlan with priority analysis and calendar suggestions.`)
+
+Generates a structured TaskPlan with priority analysis and calendar suggestions.`
+			)
 			.action(async (options: { date: string; 'user-message'?: string }) => {
 				await this.initializeOrion();
 				await this.handleTaskPlanCommand(options);
@@ -130,8 +146,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		program
 			.command('status')
 			.description('Show Orion status and configuration')
-			.action(() => {
-				this.showStatusCommand();
+			.action(async () => {
+				await this.showStatusCommand();
 			});
 
 		program
@@ -149,17 +165,19 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			.option('--conversation', 'Show conversation history')
 			.option('--session', 'Show current session state')
 			.option('--task-analysis', 'Show last task analysis details')
-			.action((options: { conversation?: boolean; session?: boolean; 'task-analysis'?: boolean }) => {
-				this.handleDebugCommand(options);
-			});
+			.action(
+				(options: { conversation?: boolean; session?: boolean; 'task-analysis'?: boolean }) => {
+					this.handleDebugCommand(options);
+				}
+			);
 
 		program
 			.command('auth')
 			.description('Authentication management')
 			.option('--google-tasks', 'Set up Google Tasks authentication')
 			.option('--status', 'Show authentication status')
-			.action((options: { 'google-tasks'?: boolean; status?: boolean }) => {
-				this.handleAuthCommand(options);
+			.action(async (options: { googleTasks?: boolean; status?: boolean }) => {
+				await this.handleAuthCommand(options);
 			});
 
 		await program.parseAsync();
@@ -172,6 +190,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			console.log(chalk.blue('🚀 Initializing Orion...'));
 
 			const config = await this.loadConfig();
+			this.config = config;
 			this.orion = new OrionCore(config);
 			this.sessionId = this.orion.startSession('cli-user');
 
@@ -216,8 +235,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 					ics: [],
 				},
 				agents: {
-					plannerModel: 'gpt-4o',
-					plannerTemperature: 0.2,
+					plannerModel: 'gpt-5-nano',
 					fallbackModel: 'claude-3-5-sonnet',
 					codexEnabled: false,
 				},
@@ -274,10 +292,34 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		}
 	}
 
-	private async handleChatCommand(): Promise<void> {
+	private async handleChatCommand(options?: {
+		'dry-run'?: boolean;
+		message?: string;
+	}): Promise<void> {
 		if (!this.orion || !this.sessionId) {
 			console.error(chalk.red('❌ Orion not initialized'));
 			return;
+		}
+
+		if (options?.message) {
+			// One-shot, non-interactive mode
+			try {
+				if (options['dry-run']) {
+					const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
+					const reply =
+						"Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
+						`I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
+					console.log(chalk.green('Orion:'), reply);
+					return;
+				}
+
+				const response = await this.orion.processMessage(this.sessionId, options.message);
+				console.log(chalk.green('Orion:'), response);
+				return;
+			} catch (error) {
+				console.error(chalk.red('❌ Error:'), error);
+				return;
+			}
 		}
 
 		console.log(chalk.green('💬 Starting interactive chat with Orion'));
@@ -305,9 +347,19 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 
 			if (typeof message === 'string') {
 				try {
-					const response = await this.orion.processMessage(this.sessionId, message);
-					console.log(chalk.green('Orion:'), response);
-					console.log('');
+					if (options?.['dry-run']) {
+						// Simulate a helpful response without API calls
+						const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
+						const reply =
+							"Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
+							`I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
+						console.log(chalk.green('Orion:'), reply);
+						console.log('');
+					} else {
+						const response = await this.orion.processMessage(this.sessionId, message);
+						console.log(chalk.green('Orion:'), response);
+						console.log('');
+					}
 				} catch (error) {
 					console.error(chalk.red('❌ Error:'), error);
 				}
@@ -364,7 +416,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		}
 	}
 
-	private showStatusCommand(): void {
+	private async showStatusCommand(): Promise<void> {
 		console.log(chalk.blue('📊 Orion Status'));
 		console.log(chalk.gray('='.repeat(50)));
 
@@ -373,7 +425,20 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		console.log(
 			`${chalk.cyan('Features:')} Google Tasks, Task Interviewing, TaskPlan Generation, Agents SDK`
 		);
+
 		console.log(`${chalk.cyan('Config:')} ${process.env.ORION_CONFIG ?? './orion.config.json'}`);
+		if (!this.config) {
+			try {
+				this.config = await this.loadConfig();
+			} catch {
+				// ignore
+			}
+		}
+		if (this.config?.agents?.plannerModel) {
+			console.log(
+				`${chalk.cyan('Default Model:')} ${chalk.magenta(this.config.agents.plannerModel)}`
+			);
+		}
 
 		// Check environment
 		console.log(`\n${chalk.blue('🔧 Environment:')}`);
@@ -400,13 +465,17 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 				console.log(`${chalk.cyan('State:')} ${session.state}`);
 				console.log(`${chalk.cyan('Pattern:')} ${session.pattern}`);
 				console.log(`${chalk.cyan('Messages:')} ${session.messages.length}`);
-				console.log(`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? '✅ Yes' : '❌ No'}`);
-				
+				console.log(
+					`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? '✅ Yes' : '❌ No'}`
+				);
+
 				if (session.currentTaskPlan) {
 					const plan = session.currentTaskPlan;
 					console.log(`${chalk.cyan('Tasks Analyzed:')} ${plan.taskAnalysis.length}`);
 					console.log(`${chalk.cyan('Questions:')} ${plan.questions?.length || 0}`);
-					console.log(`${chalk.cyan('Calendar Suggestions:')} ${plan.calendarSuggestions?.length || 0}`);
+					console.log(
+						`${chalk.cyan('Calendar Suggestions:')} ${plan.calendarSuggestions?.length || 0}`
+					);
 				}
 			}
 		} else {
@@ -445,7 +514,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		if (options.conversation) {
 			console.log(chalk.blue('💬 Conversation History'));
 			console.log(chalk.gray('='.repeat(50)));
-			
+
 			if (session.messages.length === 0) {
 				console.log(chalk.yellow('No messages in conversation history'));
 				return;
@@ -477,7 +546,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		if (options['task-analysis']) {
 			console.log(chalk.blue('🎯 Task Analysis'));
 			console.log(chalk.gray('='.repeat(50)));
-			
+
 			if (session.currentTaskPlan) {
 				this.displayTaskPlan(session.currentTaskPlan);
 			} else {
@@ -496,13 +565,13 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 	}
 
 	private async handleAuthCommand(options: {
-		'google-tasks'?: boolean;
+		googleTasks?: boolean;
 		status?: boolean;
 	}): Promise<void> {
-		if (options['google-tasks']) {
+		if (options.googleTasks) {
 			console.log(chalk.blue('🔐 Google Tasks Authentication Setup'));
 			console.log(chalk.gray('='.repeat(50)));
-			
+
 			if (!this.orion) {
 				await this.initializeOrion();
 			}
@@ -510,7 +579,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			try {
 				console.log(chalk.dim('🔄 Generating Google Tasks authorization URL...'));
 				const authUrl = await this.orion!.getGoogleTasksAuthUrl();
-				
+
 				console.log(chalk.green('✅ Authorization URL generated!'));
 				console.log('');
 				console.log(chalk.bold('1. Open this URL in your browser:'));
@@ -532,10 +601,10 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 				if (result.code && typeof result.code === 'string' && result.code.trim()) {
 					console.log(chalk.dim('🔄 Exchanging authorization code for tokens...'));
 					const tokens = await this.orion!.exchangeGoogleTasksAuthCode(result.code.trim());
-					
+
 					// Set the tokens in Orion for immediate use
 					this.orion!.setGoogleTasksTokens(tokens);
-					
+
 					console.log(chalk.green('✅ Google Tasks authentication successful!'));
 					console.log(chalk.gray('You can now use commands like: orion read-tasks'));
 				} else {
@@ -549,18 +618,24 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		if (options.status) {
 			console.log(chalk.blue('🔐 Authentication Status'));
 			console.log(chalk.gray('='.repeat(50)));
-			
+
 			// Check OpenAI API key
 			const hasOpenAI = !!process.env.OPENAI_API_KEY;
-			console.log(`${chalk.cyan('OpenAI API:')} ${hasOpenAI ? chalk.green('✅ Configured') : chalk.red('❌ Missing')}`);
-			
+			console.log(
+				`${chalk.cyan('OpenAI API:')} ${hasOpenAI ? chalk.green('✅ Configured') : chalk.red('❌ Missing')}`
+			);
+
 			// Check Google Tasks (this would require checking stored tokens)
-			console.log(`${chalk.cyan('Google Tasks:')} ${chalk.yellow('⚠️ Status check not implemented')}`);
-			console.log(chalk.gray('Run: orion auth --google-tasks to set up Google Tasks authentication'));
+			console.log(
+				`${chalk.cyan('Google Tasks:')} ${chalk.yellow('⚠️ Status check not implemented')}`
+			);
+			console.log(
+				chalk.gray('Run: orion auth --google-tasks to set up Google Tasks authentication')
+			);
 		}
 
 		// If no specific options, show help
-		if (!options['google-tasks'] && !options.status) {
+		if (!options.googleTasks && !options.status) {
 			console.log(chalk.blue('🔐 Authentication Management'));
 			console.log(chalk.gray('Available auth options:'));
 			console.log('  --google-tasks   Set up Google Tasks OAuth2 authentication');

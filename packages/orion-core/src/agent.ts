@@ -211,7 +211,7 @@ export function createOrionAgent(config: OrionConfig): {
 
 	const plannerLLM = new PlannerLLM({
 		model: config.agents.plannerModel,
-		temperature: config.agents.plannerTemperature,
+		temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
 		fallbackModel: config.agents.fallbackModel,
 	});
 
@@ -243,7 +243,7 @@ export function createOrionContext(
 
 	const plannerLLM = new PlannerLLM({
 		model: config.agents.plannerModel,
-		temperature: config.agents.plannerTemperature,
+		temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
 		fallbackModel: config.agents.fallbackModel,
 	});
 

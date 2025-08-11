@@ -132,14 +132,14 @@
 
 #### **3.3 Basic CLI Interface**
 
-- [ ] **packages/cli/src/index.ts**: Update commands for new workflow
+- [x] **packages/cli/src/index.ts**: Update commands for new workflow
   ```bash
   orion interview-tasks  # Start conversational interview
   orion read-tasks       # Display parsed Google Tasks
   orion plan --date YYYY-MM-DD  # Generate TaskPlan
   ```
-- [ ] **CLI Output Formatting**: Human-readable TaskPlan display
-- [ ] **Debug Commands**: View conversation history, task analysis
+- [x] **CLI Output Formatting**: Human-readable TaskPlan display
+- [x] **Debug Commands**: View conversation history, task analysis
 
 ---
 

@@ -42,6 +42,7 @@ export declare class PlannerLLM {
     private openai;
     private conversationState;
     constructor(config: PlannerConfig, apiKey?: string);
+    private supportsTemperature;
     /**
      * Generate a structured day plan using LLM
      * Phase 1A: OpenAI structured outputs with fallback handling

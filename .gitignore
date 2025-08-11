@@ -77,3 +77,7 @@ secrets.json
 # Test results
 test-results/
 playwright-report/
+
+commands/
+NOTE.md
+SPEC.md

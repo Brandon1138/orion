@@ -177,7 +177,7 @@ export function createOrionAgent(config) {
     });
     const plannerLLM = new PlannerLLM({
         model: config.agents.plannerModel,
-        temperature: config.agents.plannerTemperature,
+        temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
         fallbackModel: config.agents.fallbackModel,
     });
     const orchestrator = new TaskPlanningOrchestrator(taskParser, plannerLLM, config);
@@ -201,7 +201,7 @@ export function createOrionContext(config, sessionId, userId) {
     });
     const plannerLLM = new PlannerLLM({
         model: config.agents.plannerModel,
-        temperature: config.agents.plannerTemperature,
+        temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
         fallbackModel: config.agents.fallbackModel,
     });
     return {
