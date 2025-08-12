@@ -14,7 +14,7 @@ import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
 import { ToolRegistry } from './tools.js';
 import { IntentRouter, type IntentRoute } from './intent.js';
-import { ActionEngine, type Action } from './action-engine.js';
+import { ActionEngine, type Action, type ApprovalHandler } from './action-engine.js';
 import { CommandRouter } from '@orion/command-router';
 import type { Event } from '@orion/calendar-parser';
 import type { Task, TaskContext } from '@orion/task-parser';
@@ -83,6 +83,7 @@ export class OrionCore {
 	private actionEngine: ActionEngine;
 	private openai: OpenAI;
 	private sessions = new Map<string, SessionContext>();
+	private approvalHandler?: ApprovalHandler;
 
 	// OpenAI Agents SDK Integration (Chunk 3.2)
 	private orionAgent: { name: string; instructions: string; model: string; orchestrator: any };
@@ -228,6 +229,13 @@ export class OrionCore {
 
 	async runActions(actions: Action[]): Promise<unknown> {
 		return await this.actionEngine.run(actions);
+	}
+
+	/**
+	 * Sprint 3: Allow host (CLI/UI) to supply an approval handler
+	 */
+	setApprovalHandler(handler: ApprovalHandler): void {
+		this.approvalHandler = handler;
 	}
 
 	/**
@@ -1192,25 +1200,45 @@ Remember: You're conducting conversational interviews to help users plan their t
 			return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
 		}
 
-		// Sprint 2: pseudo calendar/journal tools for preview mode
-		if (tool === 'calendar.create_event') {
-			// Phase 1A: return preview only; actual writes gated by approval
+		// Sprint 3: Connectors — dry-run by default with config checks
+		if (tool === 'calendar.create_event' || tool === 'calendar.update_event') {
+			const hasGoogle = this.config.calendars?.google?.enabled === true;
+			const hasMsGraph = this.config.calendars?.msgraph?.enabled === true;
+			const provider = hasGoogle ? 'google' : hasMsGraph ? 'msgraph' : 'none';
+			if (provider === 'none') {
+				return {
+					ok: false,
+					error: 'needs_configuration',
+					data: {
+						providerHint: 'Enable google or msgraph in orion.config.json.calendars',
+						instructions:
+							'Set calendars.google.enabled=true or calendars.msgraph.enabled=true and provide key refs under keys.googleKeyRef/msgraphKeyRef.',
+					},
+				};
+			}
+			// Check key presence
+			const missing: string[] = [];
+			if (provider === 'google' && !this.resolveKeyRef(this.config.keys?.googleKeyRef))
+				missing.push('googleKeyRef');
+			if (provider === 'msgraph' && !this.resolveKeyRef(this.config.keys?.msgraphKeyRef))
+				missing.push('msgraphKeyRef');
+			if (missing.length > 0) {
+				return {
+					ok: false,
+					error: 'needs_configuration',
+					data: {
+						missing,
+						instructions:
+							'Add the missing key refs in orion.config.json.keys and ensure the referenced secret exists (env:VAR or keychain:NAME).',
+					},
+				};
+			}
+			// Dry-run only
 			return {
 				ok: true,
 				data: {
 					kind: 'preview',
-					message: 'Would create calendar event (dry-run preview).',
-					args,
-				},
-			};
-		}
-
-		if (tool === 'calendar.update_event') {
-			return {
-				ok: true,
-				data: {
-					kind: 'preview',
-					message: 'Would update calendar event (dry-run preview).',
+					message: `Would ${tool.includes('update') ? 'update' : 'create'} calendar event (${provider})`,
 					args,
 				},
 			};
@@ -1219,11 +1247,7 @@ Remember: You're conducting conversational interviews to help users plan their t
 		if (tool === 'journal.add_entry') {
 			return {
 				ok: true,
-				data: {
-					kind: 'preview',
-					message: 'Would append journal entry (dry-run preview).',
-					args,
-				},
+				data: { kind: 'preview', message: 'Would append journal entry (dry-run preview).', args },
 			};
 		}
 
@@ -1239,6 +1263,62 @@ Remember: You're conducting conversational interviews to help users plan their t
 			} catch (err) {
 				return { ok: false, error: err instanceof Error ? err.message : 'Fetch failed' };
 			}
+		}
+
+		// GitHub
+		if (
+			tool === 'github.issue.create' ||
+			tool === 'github.comment.create' ||
+			tool === 'github.search_prs'
+		) {
+			const token =
+				this.resolveKeyRef((this.config as any).keys?.githubKeyRef) || process.env.GITHUB_TOKEN;
+			if (!token) {
+				return {
+					ok: false,
+					error: 'needs_configuration',
+					data: {
+						missing: ['githubKeyRef or GITHUB_TOKEN'],
+						instructions: 'Set env GITHUB_TOKEN or add keys.githubKeyRef in orion.config.json.',
+					},
+				};
+			}
+			// Dry-run only
+			return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on GitHub`, args } };
+		}
+
+		// Notion
+		if (tool === 'notion.task.create' || tool === 'notion.task.update') {
+			const token =
+				this.resolveKeyRef((this.config as any).keys?.notionKeyRef) || process.env.NOTION_TOKEN;
+			if (!token) {
+				return {
+					ok: false,
+					error: 'needs_configuration',
+					data: {
+						missing: ['notionKeyRef or NOTION_TOKEN'],
+						instructions: 'Set env NOTION_TOKEN or add keys.notionKeyRef in orion.config.json.',
+					},
+				};
+			}
+			return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Notion`, args } };
+		}
+
+		// Linear
+		if (tool === 'linear.issue.create' || tool === 'linear.issue.update') {
+			const token =
+				this.resolveKeyRef((this.config as any).keys?.linearKeyRef) || process.env.LINEAR_TOKEN;
+			if (!token) {
+				return {
+					ok: false,
+					error: 'needs_configuration',
+					data: {
+						missing: ['linearKeyRef or LINEAR_TOKEN'],
+						instructions: 'Set env LINEAR_TOKEN or add keys.linearKeyRef in orion.config.json.',
+					},
+				};
+			}
+			return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Linear`, args } };
 		}
 
 		if (tool === 'conduct_task_interview') {
@@ -1258,12 +1338,21 @@ Remember: You're conducting conversational interviews to help users plan their t
 		return { ok: false, error: `Unknown tool: ${tool}` };
 	}
 
-	private async requestApproval(_action: {
+	private resolveKeyRef(ref?: string): string | undefined {
+		if (!ref) return undefined;
+		if (ref.startsWith('env:')) return process.env[ref.slice(4)];
+		// keychain:NAME not implemented in Phase 1A; return undefined to signal missing
+		return undefined;
+	}
+
+	private async requestApproval(action: {
 		tool: string;
 		args: Record<string, unknown>;
 		risk?: 'low' | 'medium' | 'high';
 	}): Promise<boolean> {
-		// Sprint 1: ask path can be handled by CLI; default reject if not overridden by caller
+		if (this.approvalHandler) {
+			return this.approvalHandler(action as any);
+		}
 		return false;
 	}
 

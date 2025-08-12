@@ -25,6 +25,13 @@ export class OrionCLI {
             await this.handlePlanCommand(options);
         });
         program
+            .command('status')
+            .description('Show Orion status and registered tools')
+            .action(async () => {
+            await this.initializeOrion();
+            this.printToolStatus();
+        });
+        program
             .command('chat')
             .description('Start interactive chat session')
             .option('--dry-run', 'Run chat without calling external APIs')
@@ -32,6 +39,25 @@ export class OrionCLI {
             .option('-m, --message <message>', 'Run a single-turn chat with the provided message and exit')
             .action(async (options) => {
             await this.initializeOrion();
+            // Provide an approval handler so ActionEngine can request approvals
+            this.orion.setApprovalHandler(async (action) => {
+                const risk = action.risk || 'low';
+                if (options?.['approve-low'] && risk === 'low')
+                    return true;
+                // Ask user for medium/high
+                if (risk === 'medium' || risk === 'high') {
+                    const { approve } = await inquirer.prompt([
+                        {
+                            type: 'confirm',
+                            name: 'approve',
+                            message: `Approve ${action.tool} [${risk}]?`,
+                            default: false,
+                        },
+                    ]);
+                    return approve;
+                }
+                return true;
+            });
             await this.handleChatCommand(options);
         });
         program
@@ -94,12 +120,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             await this.initializeOrion();
             await this.handleTaskPlanCommand(options);
         });
-        program
-            .command('status')
-            .description('Show Orion status and configuration')
-            .action(async () => {
-            await this.showStatusCommand();
-        });
+        // Duplicate status command removed; use earlier 'status' which prints registered tools
         program
             .command('audit')
             .description('Show audit log')
@@ -126,6 +147,16 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             await this.handleAuthCommand(options);
         });
         await program.parseAsync();
+    }
+    // New: show registered tools and policy tags
+    printToolStatus() {
+        if (!this.orion)
+            return;
+        const tools = this.orion.listTools();
+        console.log(chalk.blue('Registered Tools:'));
+        tools.forEach((t) => {
+            console.log(`  - ${chalk.cyan(t.name)} ${chalk.gray('[' + (t.policy_tag || 'unknown') + ']')}`);
+        });
     }
     async initializeOrion() {
         if (this.orion)

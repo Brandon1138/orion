@@ -67,26 +67,30 @@ export interface OrionConfig {
 		rateLimiting: boolean;
 	};
 	calendars: CalendarConfig;
-		mcp?: {
-			servers: Array<{ id: string; endpoint: string; scopes: string[] }>;
-			fsAllow: string[];
-			fsDeny: string[];
-			commandPolicy: { allow: string[]; deny: string[]; default: 'block' | 'ask' | 'auto' };
-			rateLimits: { operationsPerMinute: number; maxFileSize: string; timeoutSeconds: number };
-		};
+	mcp?: {
+		servers: Array<{ id: string; endpoint: string; scopes: string[] }>;
+		fsAllow: string[];
+		fsDeny: string[];
+		commandPolicy: { allow: string[]; deny: string[]; default: 'block' | 'ask' | 'auto' };
+		rateLimits: { operationsPerMinute: number; maxFileSize: string; timeoutSeconds: number };
+	};
 	agents: {
 		plannerModel: string;
 		plannerTemperature?: number;
 		fallbackModel: string;
 		codexEnabled: boolean;
 	};
-		web?: {
-			allowlist?: string[];
-		};
+	web?: {
+		allowlist?: string[];
+	};
 	keys: {
 		openaiKeyRef: string;
 		googleKeyRef: string;
 		msgraphKeyRef: string;
+		// Sprint 3 additional connectors
+		githubKeyRef?: string;
+		notionKeyRef?: string;
+		linearKeyRef?: string;
 	};
 	audit: {
 		path: string;

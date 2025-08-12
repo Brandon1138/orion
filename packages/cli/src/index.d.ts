@@ -8,6 +8,7 @@ export declare class OrionCLI {
     private sessionId?;
     private config?;
     run(): Promise<void>;
+    private printToolStatus;
     private initializeOrion;
     private previewAndMaybeExecute;
     private loadConfig;

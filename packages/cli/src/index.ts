@@ -52,6 +52,14 @@ export class OrionCLI {
 			});
 
 		program
+			.command('status')
+			.description('Show Orion status and registered tools')
+			.action(async () => {
+				await this.initializeOrion();
+				this.printToolStatus();
+			});
+
+		program
 			.command('chat')
 			.description('Start interactive chat session')
 			.option('--dry-run', 'Run chat without calling external APIs')
@@ -63,6 +71,26 @@ export class OrionCLI {
 			.action(
 				async (options: { 'dry-run'?: boolean; 'approve-low'?: boolean; message?: string }) => {
 					await this.initializeOrion();
+					// Provide an approval handler so ActionEngine can request approvals
+					(this.orion as any).setApprovalHandler(
+						async (action: { tool: string; risk?: 'low' | 'medium' | 'high' }) => {
+							const risk = action.risk || 'low';
+							if (options?.['approve-low'] && risk === 'low') return true;
+							// Ask user for medium/high
+							if (risk === 'medium' || risk === 'high') {
+								const { approve } = await inquirer.prompt<{ approve: boolean }>([
+									{
+										type: 'confirm',
+										name: 'approve',
+										message: `Approve ${action.tool} [${risk}]?`,
+										default: false,
+									},
+								]);
+								return approve;
+							}
+							return true;
+						}
+					);
 					await this.handleChatCommand(options);
 				}
 			);
@@ -146,12 +174,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 				await this.handleTaskPlanCommand(options);
 			});
 
-		program
-			.command('status')
-			.description('Show Orion status and configuration')
-			.action(async () => {
-				await this.showStatusCommand();
-			});
+		// Duplicate status command removed; use earlier 'status' which prints registered tools
 
 		program
 			.command('audit')
@@ -184,6 +207,18 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			});
 
 		await program.parseAsync();
+	}
+
+	// New: show registered tools and policy tags
+	private printToolStatus(): void {
+		if (!this.orion) return;
+		const tools = (this.orion as any).listTools();
+		console.log(chalk.blue('Registered Tools:'));
+		tools.forEach((t: any) => {
+			console.log(
+				`  - ${chalk.cyan(t.name)} ${chalk.gray('[' + (t.policy_tag || 'unknown') + ']')}`
+			);
+		});
 	}
 
 	private async initializeOrion(): Promise<void> {

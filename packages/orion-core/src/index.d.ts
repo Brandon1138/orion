@@ -3,7 +3,7 @@
  * Task interviewing workflow with Google Tasks integration
  */
 import 'dotenv/config';
-import { type Action } from './action-engine.js';
+import { type Action, type ApprovalHandler } from './action-engine.js';
 import type { TaskPlan } from '@orion/planner-llm';
 import type { OrionConfig, PlanRequest, PlanResponse, SessionContext } from './types.js';
 export * from './types.js';
@@ -19,6 +19,7 @@ export declare class OrionCore {
     private actionEngine;
     private openai;
     private sessions;
+    private approvalHandler?;
     private orionAgent;
     private agentContext;
     constructor(config: OrionConfig);
@@ -48,6 +49,10 @@ export declare class OrionCore {
         actions: Action[];
     }>;
     runActions(actions: Action[]): Promise<unknown>;
+    /**
+     * Sprint 3: Allow host (CLI/UI) to supply an approval handler
+     */
+    setApprovalHandler(handler: ApprovalHandler): void;
     /**
      * Handle user message with OpenAI Agents SDK (Chunk 3.2)
      * This is the new preferred method for task interviewing workflow
@@ -146,6 +151,7 @@ export declare class OrionCore {
      */
     private handleReadFile;
     private executeTool;
+    private resolveKeyRef;
     private requestApproval;
     /**
      * Tool handler: List directory

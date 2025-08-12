@@ -28,6 +28,7 @@ export class OrionCore {
     actionEngine;
     openai;
     sessions = new Map();
+    approvalHandler;
     // OpenAI Agents SDK Integration (Chunk 3.2)
     orionAgent;
     agentContext;
@@ -153,6 +154,12 @@ export class OrionCore {
     }
     async runActions(actions) {
         return await this.actionEngine.run(actions);
+    }
+    /**
+     * Sprint 3: Allow host (CLI/UI) to supply an approval handler
+     */
+    setApprovalHandler(handler) {
+        this.approvalHandler = handler;
     }
     /**
      * Handle user message with OpenAI Agents SDK (Chunk 3.2)
@@ -1006,37 +1013,42 @@ Remember: You're conducting conversational interviews to help users plan their t
             const result = await this.mcpClient.execute({ serverId: 'local-fs', tool, args });
             return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
         }
-        // Sprint 2: pseudo calendar/journal tools for preview mode
-        if (tool === 'calendar.create_event') {
-            // Phase 1A: return preview only; actual writes gated by approval
-            return {
-                ok: true,
-                data: {
-                    kind: 'preview',
-                    message: 'Would create calendar event (dry-run preview).',
-                    args,
-                },
-            };
-        }
-        if (tool === 'calendar.update_event') {
-            return {
-                ok: true,
-                data: {
-                    kind: 'preview',
-                    message: 'Would update calendar event (dry-run preview).',
-                    args,
-                },
-            };
+        // Sprint 3: Connectors — dry-run by default with config checks
+        if (tool === 'calendar.create_event' || tool === 'calendar.update_event') {
+            const hasGoogle = this.config.calendars?.google?.enabled === true;
+            const hasMsGraph = this.config.calendars?.msgraph?.enabled === true;
+            const provider = hasGoogle ? 'google' : hasMsGraph ? 'msgraph' : 'none';
+            if (provider === 'none') {
+                return {
+                    ok: false,
+                    error: 'needs_configuration',
+                    data: {
+                        providerHint: 'Enable google or msgraph in orion.config.json.calendars',
+                        instructions: 'Set calendars.google.enabled=true or calendars.msgraph.enabled=true and provide key refs under keys.googleKeyRef/msgraphKeyRef.',
+                    },
+                };
+            }
+            // Check key presence
+            const missing = [];
+            if (provider === 'google' && !this.resolveKeyRef(this.config.keys?.googleKeyRef))
+                missing.push('googleKeyRef');
+            if (provider === 'msgraph' && !this.resolveKeyRef(this.config.keys?.msgraphKeyRef))
+                missing.push('msgraphKeyRef');
+            if (missing.length > 0) {
+                return {
+                    ok: false,
+                    error: 'needs_configuration',
+                    data: {
+                        missing,
+                        instructions: 'Add the missing key refs in orion.config.json.keys and ensure the referenced secret exists (env:VAR or keychain:NAME).',
+                    },
+                };
+            }
+            // Dry-run only
+            return { ok: true, data: { kind: 'preview', message: `Would ${tool.includes('update') ? 'update' : 'create'} calendar event (${provider})`, args } };
         }
         if (tool === 'journal.add_entry') {
-            return {
-                ok: true,
-                data: {
-                    kind: 'preview',
-                    message: 'Would append journal entry (dry-run preview).',
-                    args,
-                },
-            };
+            return { ok: true, data: { kind: 'preview', message: 'Would append journal entry (dry-run preview).', args } };
         }
         if (tool === 'web.fetch') {
             const url = String(args['url'] ?? '');
@@ -1051,6 +1063,43 @@ Remember: You're conducting conversational interviews to help users plan their t
             catch (err) {
                 return { ok: false, error: err instanceof Error ? err.message : 'Fetch failed' };
             }
+        }
+        // GitHub
+        if (tool === 'github.issue.create' || tool === 'github.comment.create' || tool === 'github.search_prs') {
+            const token = this.resolveKeyRef(this.config.keys?.githubKeyRef) || process.env.GITHUB_TOKEN;
+            if (!token) {
+                return {
+                    ok: false,
+                    error: 'needs_configuration',
+                    data: { missing: ['githubKeyRef or GITHUB_TOKEN'], instructions: 'Set env GITHUB_TOKEN or add keys.githubKeyRef in orion.config.json.' },
+                };
+            }
+            // Dry-run only
+            return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on GitHub`, args } };
+        }
+        // Notion
+        if (tool === 'notion.task.create' || tool === 'notion.task.update') {
+            const token = this.resolveKeyRef(this.config.keys?.notionKeyRef) || process.env.NOTION_TOKEN;
+            if (!token) {
+                return {
+                    ok: false,
+                    error: 'needs_configuration',
+                    data: { missing: ['notionKeyRef or NOTION_TOKEN'], instructions: 'Set env NOTION_TOKEN or add keys.notionKeyRef in orion.config.json.' },
+                };
+            }
+            return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Notion`, args } };
+        }
+        // Linear
+        if (tool === 'linear.issue.create' || tool === 'linear.issue.update') {
+            const token = this.resolveKeyRef(this.config.keys?.linearKeyRef) || process.env.LINEAR_TOKEN;
+            if (!token) {
+                return {
+                    ok: false,
+                    error: 'needs_configuration',
+                    data: { missing: ['linearKeyRef or LINEAR_TOKEN'], instructions: 'Set env LINEAR_TOKEN or add keys.linearKeyRef in orion.config.json.' },
+                };
+            }
+            return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Linear`, args } };
         }
         if (tool === 'conduct_task_interview') {
             try {
@@ -1067,8 +1116,18 @@ Remember: You're conducting conversational interviews to help users plan their t
         }
         return { ok: false, error: `Unknown tool: ${tool}` };
     }
-    async requestApproval(_action) {
-        // Sprint 1: ask path can be handled by CLI; default reject if not overridden by caller
+    resolveKeyRef(ref) {
+        if (!ref)
+            return undefined;
+        if (ref.startsWith('env:'))
+            return process.env[ref.slice(4)];
+        // keychain:NAME not implemented in Phase 1A; return undefined to signal missing
+        return undefined;
+    }
+    async requestApproval(action) {
+        if (this.approvalHandler) {
+            return this.approvalHandler(action);
+        }
         return false;
     }
     /**

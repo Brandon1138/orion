@@ -86,6 +86,9 @@ export interface OrionConfig {
         openaiKeyRef: string;
         googleKeyRef: string;
         msgraphKeyRef: string;
+        githubKeyRef?: string;
+        notionKeyRef?: string;
+        linearKeyRef?: string;
     };
     audit: {
         path: string;

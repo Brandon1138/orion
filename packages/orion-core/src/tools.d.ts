@@ -5,7 +5,8 @@
 export type ToolDefinition = {
     name: string;
     description: string;
-    policy_tag: 'read' | 'network' | 'unknown';
+    policy_tag: string;
+    schema?: Record<string, unknown>;
 };
 export interface WebConfig {
     allowlist?: string[];
