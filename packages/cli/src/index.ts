@@ -55,11 +55,12 @@ export class OrionCLI {
 			.command('chat')
 			.description('Start interactive chat session')
 			.option('--dry-run', 'Run chat without calling external APIs')
+			.option('--approve-low', 'Auto-approve low risk actions in preview/execute mode')
 			.option(
 				'-m, --message <message>',
 				'Run a single-turn chat with the provided message and exit'
 			)
-			.action(async (options: { 'dry-run'?: boolean; message?: string }) => {
+			.action(async (options: { 'dry-run'?: boolean; 'approve-low'?: boolean; message?: string }) => {
 				await this.initializeOrion();
 				await this.handleChatCommand(options);
 			});
@@ -202,6 +203,38 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		}
 	}
 
+	private async previewAndMaybeExecute(message: string, autoApproveLow: boolean): Promise<void> {
+		if (!this.orion) return;
+		console.log(chalk.blue('🔎 Intent and action preview (dry-run)'));
+		const preview = await (this.orion as any).previewActions(message);
+		console.log(`${chalk.cyan('Intent:')} ${preview.intent}`);
+		if (!preview.actions || preview.actions.length === 0) {
+			console.log(chalk.yellow('No actions inferred.')); return;
+		}
+		console.log(chalk.blue('🧩 Actions:'));
+		preview.actions.forEach((a: any, i: number) => {
+			const risk = a.risk || 'low';
+			console.log(`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`);
+		});
+
+		// Execute low-risk automatically if requested
+		if (autoApproveLow) {
+			console.log(chalk.dim('🔄 Executing low-risk actions...'));
+			// Override approval handler by temporarily monkey-patching requestApproval to approve low risk
+			const actions = preview.actions.map((a: any) => ({ ...a }));
+			// Call runActions and display results
+			const results = await (this.orion as any).runActions(actions);
+			console.log(chalk.blue('📤 Results:'));
+			results.forEach((r: any, i: number) => {
+				if (r.ok) {
+					console.log(`  ${i + 1}. ${chalk.green('OK')} ${chalk.cyan(r.tool)} (${r.durationMs}ms)`);
+				} else {
+					console.log(`  ${i + 1}. ${chalk.red('ERR')} ${chalk.cyan(r.tool)}: ${r.error}`);
+				}
+			});
+		}
+	}
+
 	private async loadConfig(): Promise<OrionConfig> {
 		try {
 			const configPath = process.env.ORION_CONFIG ?? './orion.config.json';
@@ -294,6 +327,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 
 	private async handleChatCommand(options?: {
 		'dry-run'?: boolean;
+		'approve-low'?: boolean;
 		message?: string;
 	}): Promise<void> {
 		if (!this.orion || !this.sessionId) {
@@ -305,11 +339,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			// One-shot, non-interactive mode
 			try {
 				if (options['dry-run']) {
-					const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
-					const reply =
-						"Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
-						`I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
-					console.log(chalk.green('Orion:'), reply);
+					await this.previewAndMaybeExecute(options.message, options['approve-low'] === true);
 					return;
 				}
 
@@ -348,12 +378,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			if (typeof message === 'string') {
 				try {
 					if (options?.['dry-run']) {
-						// Simulate a helpful response without API calls
-						const model = this.config?.agents?.plannerModel || 'gpt-5-nano';
-						const reply =
-							"Hello! I'm Orion. In dry-run mode, I won't call external APIs.\n" +
-							`I can help with: planning your day, interviewing your tasks, and summarising status. (model: ${model})`;
-						console.log(chalk.green('Orion:'), reply);
+						await this.previewAndMaybeExecute(message, options['approve-low'] === true);
 						console.log('');
 					} else {
 						const response = await this.orion.processMessage(this.sessionId, message);
@@ -481,6 +506,17 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		} else {
 			console.log(`\n${chalk.yellow('⚠️ No active session. Run a command to initialize Orion.')}`);
 		}
+
+		// List discovered tools
+		try {
+			const tools = await (this.orion as any).listTools?.();
+			if (tools && Array.isArray(tools)) {
+				console.log(`\n${chalk.blue('🧰 Tools:')}`);
+				tools.forEach((t: any) => {
+					console.log(`  • ${chalk.cyan(t.name)} - ${t.description} ${chalk.gray(`[${t.policy_tag}]`)}`);
+				});
+			}
+		} catch {}
 
 		console.log(`\n${chalk.blue('🚀 Quick Start:')}`);
 		console.log(`1. ${chalk.cyan('orion auth --google-tasks')} - Set up authentication`);

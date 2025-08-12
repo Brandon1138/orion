@@ -3,6 +3,7 @@
  * Task interviewing workflow with Google Tasks integration
  */
 import 'dotenv/config';
+import { type Action } from './action-engine.js';
 import type { OrionConfig, PlanRequest, PlanResponse, SessionContext } from './types.js';
 export * from './types.js';
 export declare class OrionCore {
@@ -12,6 +13,9 @@ export declare class OrionCore {
     private plannerLLM;
     private mcpClient;
     private commandRouter;
+    private toolRegistry;
+    private intentRouter;
+    private actionEngine;
     private openai;
     private sessions;
     private orionAgent;
@@ -21,6 +25,22 @@ export declare class OrionCore {
      * Start a new conversation session
      */
     startSession(userId: string): string;
+    /**
+     * Sprint 1: Discover tools
+     */
+    listTools(): Array<{
+        name: string;
+        description: string;
+        policy_tag: string;
+    }>;
+    /**
+     * Sprint 1: Preview and optionally execute inferred actions from a message
+     */
+    previewActions(message: string): Promise<{
+        intent: string;
+        actions: Action[];
+    }>;
+    runActions(actions: Action[]): Promise<unknown>;
     /**
      * Handle user message with OpenAI Agents SDK (Chunk 3.2)
      * This is the new preferred method for task interviewing workflow
@@ -118,6 +138,8 @@ export declare class OrionCore {
      * Tool handler: Read file
      */
     private handleReadFile;
+    private executeTool;
+    private requestApproval;
     /**
      * Tool handler: List directory
      */

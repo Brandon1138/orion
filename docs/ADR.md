@@ -197,3 +197,100 @@ _Created: January 31, 2025_
 _Author: System Architect_
 _Version: 1.0_
 _Next Review: Phase 1B completion_
+
+## ADR-003: Adopt Agent-First Architecture and Implement Sprint 1 Agent Skeleton
+
+### Status:
+
+Accepted
+
+### Context:
+
+Following ADR-002's shift to a task-proactive approach, we need a maintainable and extensible way to orchestrate capabilities as tools, apply approvals, and emit auditable events. Early prototypes tightly coupled LLM prompts with business logic, making it difficult to preview actions, enforce policy, or add connectors safely. We also want a Windows-friendly CLI that can preview actions (`--dry-run`) before execution and support low‑risk auto‑approvals.
+
+Key needs:
+
+- Discoverable, typed tool surface that can grow (MCP file tools now, web and app connectors later)
+- Minimal intent routing that maps user messages to a linear sequence of actions (Sprint 1 only)
+- An execution engine with approval gates and audit events
+- CLI wiring to preview actions and, optionally, execute low‑risk steps
+
+### Decision:
+
+Adopt an agent‑first architecture with explicit tool discovery, intent routing, and an action engine. Ship a Sprint 1 skeleton that focuses on read‑only operations and dry‑run previews.
+
+Implemented components (Phase 1A):
+
+- `ToolRegistry` (`@orion/core`):
+  - Registers MCP FS tools: `fs.read`, `fs.list`, `fs.search`
+  - Registers native `web.fetch` (GET) with optional URL allowlist (from config)
+  - Exposes `listTools()` and `getTool(name)`
+- `IntentRouter` (`@orion/core`):
+  - Rule/heuristic classifier → intents: `read_tasks | summarize | web_fetch | unknown`
+  - Produces a minimal linear action list (e.g., read fixtures then summarize)
+- `ActionEngine` (`@orion/core`):
+  - Executes a linear list of actions
+  - Approvals: `auto` for low risk; `ask` for medium/high via callback
+  - Emits audit events: `tool_called`, `approval_requested`, `completed`, `error`
+- `OrionCore` extensions:
+  - New APIs: `listTools()`, `previewActions(message)`, `runActions(actions)`
+  - Configurable MCP policy and optional `web.allowlist`
+- `@orion/cli` updates:
+  - `orion chat --dry-run [--approve-low]` previews intent and actions; optionally executes low‑risk actions
+  - `orion status` lists discovered tools
+
+### Architecture Implementation:
+
+- Core additions live in `@orion/core`:
+  - `src/tools.ts` (ToolRegistry)
+  - `src/intent.ts` (IntentRouter)
+  - `src/action-engine.ts` (ActionEngine)
+  - Wired into `src/index.ts` with safe defaults and audit logging
+- CLI integrates previews and execution using new `OrionCore` APIs
+- MCP client policy is driven by `orion.config.json.mcp` when present; read‑only by default
+
+### Consequences:
+
+Pros:
+
+- Clear separation of discovery (tools), planning (intent), and execution (engine)
+- Safer by default: read‑only operations, allowlists, and approval gates
+- Testable units with simple, linear control flow (no dependency graphs yet)
+- Extensible path for Sprint 2+ (add Planner → ActionGraph, connectors, richer policies)
+
+Cons:
+
+- Additional abstraction layer alongside existing `CommandRouter` (temporary overlap)
+- Intent routing is heuristic and limited in Sprint 1
+- `web.fetch` restricted to allowlists; requires config updates for broader use
+
+### Migration Strategy:
+
+- Sprint 2: Integrate `@orion/planner-llm` to generate ActionGraphs from TaskPlan, replacing linear lists
+- Sprint 3: Add connectors (calendar/email/github/notion/linear) with explicit schemas and approvals
+- Sprint 4: Introduce memory, reflection guards, retries, richer debug and status
+- Unify or deprecate overlapping routing with `CommandRouter` once ActionEngine becomes primary
+
+### Security and Guardrails:
+
+- Phase 1A read‑only policy enforced via MCP client (`fs.read`, `fs.list`, `fs.search`)
+- URL allowlist for `web.fetch`; blocked if not permitted
+- Medium/high‑risk actions require approval; all actions audited to JSONL
+
+### Acceptance and Verification:
+
+- Builds green across workspaces: `npm run build --workspaces`
+- CLI status lists tools: `node orion-cli.js status`
+- Dry‑run preview works:
+  - `node orion-cli.js chat --dry-run --message "Summarize the top 3 tasks from fixtures"`
+  - Optional execution of low‑risk actions: add `--approve-low`
+
+### Metadata:
+
+_Created: August 12, 2025_
+
+_Author: System Architect_
+
+_Version: 1.0_
+
+_Next Review: After Sprint 2 integration (Planning capability)_

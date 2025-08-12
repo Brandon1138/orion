@@ -12,6 +12,9 @@ import { CalendarParser } from '@orion/calendar-parser';
 import { TaskParser } from '@orion/task-parser';
 import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
+import { ToolRegistry } from './tools.js';
+import { IntentRouter, type IntentRoute } from './intent.js';
+import { ActionEngine, type Action } from './action-engine.js';
 import { CommandRouter } from '@orion/command-router';
 import type { Event } from '@orion/calendar-parser';
 import type { Task, TaskContext } from '@orion/task-parser';
@@ -75,6 +78,9 @@ export class OrionCore {
 	private plannerLLM: PlannerLLM;
 	private mcpClient: MCPClient;
 	private commandRouter: CommandRouter;
+	private toolRegistry: ToolRegistry;
+	private intentRouter: IntentRouter;
+	private actionEngine: ActionEngine;
 	private openai: OpenAI;
 	private sessions = new Map<string, SessionContext>();
 
@@ -97,26 +103,31 @@ export class OrionCore {
 			fallbackModel: config.agents.fallbackModel,
 		});
 
-		// Initialize MCP client with policy
-		this.mcpClient = new MCPClient(
-			[{ id: 'local-fs', endpoint: 'stdio', scopes: ['fs.read', 'fs.list', 'fs.search'] }],
-			{
-				fsAllow: ['./fixtures/**', './packages/**', './docs/**'],
-				fsDeny: ['./node_modules/**', './.git/**'],
-				commandPolicy: {
-					allow: [],
-					deny: ['rm', 'del', 'format', 'mkfs', 'sudo'],
-					default: 'block',
-				},
-				rateLimits: {
-					operationsPerMinute: 10,
-					maxFileSize: '1MB',
-					timeoutSeconds: 30,
-				},
-			}
-		);
+		// Initialize MCP client with policy (prefer config overrides)
+		const mcp = config.mcp ?? {
+			servers: [{ id: 'local-fs', endpoint: 'stdio', scopes: ['fs.read', 'fs.list', 'fs.search'] }],
+			fsAllow: ['./fixtures/**', './packages/**', './docs/**'],
+			fsDeny: ['./node_modules/**', './.git/**'],
+			commandPolicy: { allow: [], deny: ['rm', 'del', 'format', 'mkfs', 'sudo'], default: 'block' as const },
+			rateLimits: { operationsPerMinute: 10, maxFileSize: '1MB', timeoutSeconds: 30 },
+		};
+		this.mcpClient = new MCPClient(mcp.servers, {
+			fsAllow: mcp.fsAllow,
+			fsDeny: mcp.fsDeny,
+			commandPolicy: mcp.commandPolicy,
+			rateLimits: mcp.rateLimits,
+		});
 
 		this.commandRouter = new CommandRouter(this.mcpClient);
+
+		// Sprint 1: Tool registry, intent router, and action engine
+		this.toolRegistry = new ToolRegistry({ allowlist: config.web?.allowlist ?? ['https://example.com'] });
+		this.intentRouter = new IntentRouter();
+		this.actionEngine = new ActionEngine(
+			async (tool, args) => this.executeTool(tool, args),
+			async (action) => this.requestApproval(action),
+			(event, payload) => this.auditLog(event, payload),
+		);
 
 		// Initialize OpenAI client for conversation management
 		this.openai = new OpenAI({
@@ -149,6 +160,25 @@ export class OrionCore {
 		this.auditLog('session_start', { sessionId, userId });
 
 		return sessionId;
+	}
+
+	/**
+	 * Sprint 1: Discover tools
+	 */
+	listTools(): Array<{ name: string; description: string; policy_tag: string }> {
+		return this.toolRegistry.listTools();
+	}
+
+	/**
+	 * Sprint 1: Preview and optionally execute inferred actions from a message
+	 */
+	async previewActions(message: string): Promise<{ intent: string; actions: Action[] }> {
+		const route = this.intentRouter.route(message) as IntentRoute;
+		return { intent: route.intent, actions: route.actions } as any;
+	}
+
+	async runActions(actions: Action[]): Promise<unknown> {
+		return await this.actionEngine.run(actions);
 	}
 
 	/**
@@ -1101,6 +1131,40 @@ Remember: You're conducting conversational interviews to help users plan their t
 			args: { path },
 		};
 		return await this.mcpClient.execute(toolCall);
+	}
+
+	// Sprint 1: minimal tool executor bridging to MCP and native tools
+	private async executeTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+		if (tool.startsWith('fs.')) {
+			const result = await this.mcpClient.execute({ serverId: 'local-fs', tool, args });
+			return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
+		}
+
+		if (tool === 'web.fetch') {
+			const url = String(args['url'] ?? '');
+			if (!this.toolRegistry.isUrlAllowed(url)) {
+				return { ok: false, error: 'URL not allowed by allowlist' };
+			}
+			try {
+				const res = await fetch(url);
+				const text = await res.text();
+				return { ok: true, data: { status: res.status, body: text } };
+			} catch (err) {
+				return { ok: false, error: err instanceof Error ? err.message : 'Fetch failed' };
+			}
+		}
+
+		// Synthetic summarize tools for preview mode only
+		if (tool === 'summarize.tasks' || tool === 'summarize.text') {
+			return { ok: true, data: 'Summary generated (dry-run synthetic result).' };
+		}
+
+		return { ok: false, error: `Unknown tool: ${tool}` };
+	}
+
+	private async requestApproval(_action: { tool: string; args: Record<string, unknown>; risk?: 'low'|'medium'|'high' }): Promise<boolean> {
+		// Sprint 1: ask path can be handled by CLI; default reject if not overridden by caller
+		return false;
 	}
 
 	/**

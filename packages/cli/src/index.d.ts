@@ -9,6 +9,7 @@ export declare class OrionCLI {
     private config?;
     run(): Promise<void>;
     private initializeOrion;
+    private previewAndMaybeExecute;
     private loadConfig;
     private handlePlanCommand;
     private handleChatCommand;

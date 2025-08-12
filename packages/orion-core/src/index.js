@@ -10,6 +10,9 @@ import { CalendarParser } from '@orion/calendar-parser';
 import { TaskParser } from '@orion/task-parser';
 import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
+import { ToolRegistry } from './tools.js';
+import { IntentRouter } from './intent.js';
+import { ActionEngine } from './action-engine.js';
 import { CommandRouter } from '@orion/command-router';
 import { createOrionAgent, createOrionContext, runOrionAgent } from './agent.js';
 export * from './types.js';
@@ -20,6 +23,9 @@ export class OrionCore {
     plannerLLM;
     mcpClient;
     commandRouter;
+    toolRegistry;
+    intentRouter;
+    actionEngine;
     openai;
     sessions = new Map();
     // OpenAI Agents SDK Integration (Chunk 3.2)
@@ -56,6 +62,10 @@ export class OrionCore {
             },
         });
         this.commandRouter = new CommandRouter(this.mcpClient);
+        // Sprint 1: Tool registry, intent router, and action engine
+        this.toolRegistry = new ToolRegistry({ allowlist: ['https://example.com', 'https://raw.githubusercontent.com/'] });
+        this.intentRouter = new IntentRouter();
+        this.actionEngine = new ActionEngine(async (tool, args) => this.executeTool(tool, args), async (action) => this.requestApproval(action), (event, payload) => this.auditLog(event, payload));
         // Initialize OpenAI client for conversation management
         this.openai = new OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
@@ -82,6 +92,22 @@ export class OrionCore {
         this.sessions.set(sessionId, session);
         this.auditLog('session_start', { sessionId, userId });
         return sessionId;
+    }
+    /**
+     * Sprint 1: Discover tools
+     */
+    listTools() {
+        return this.toolRegistry.listTools();
+    }
+    /**
+     * Sprint 1: Preview and optionally execute inferred actions from a message
+     */
+    async previewActions(message) {
+        const route = this.intentRouter.route(message);
+        return { intent: route.intent, actions: route.actions };
+    }
+    async runActions(actions) {
+        return await this.actionEngine.run(actions);
     }
     /**
      * Handle user message with OpenAI Agents SDK (Chunk 3.2)
@@ -928,6 +954,36 @@ Remember: You're conducting conversational interviews to help users plan their t
             args: { path },
         };
         return await this.mcpClient.execute(toolCall);
+    }
+    // Sprint 1: minimal tool executor bridging to MCP and native tools
+    async executeTool(tool, args) {
+        if (tool.startsWith('fs.')) {
+            const result = await this.mcpClient.execute({ serverId: 'local-fs', tool, args });
+            return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
+        }
+        if (tool === 'web.fetch') {
+            const url = String(args['url'] ?? '');
+            if (!this.toolRegistry.isUrlAllowed(url)) {
+                return { ok: false, error: 'URL not allowed by allowlist' };
+            }
+            try {
+                const res = await fetch(url);
+                const text = await res.text();
+                return { ok: true, data: { status: res.status, body: text } };
+            }
+            catch (err) {
+                return { ok: false, error: err instanceof Error ? err.message : 'Fetch failed' };
+            }
+        }
+        // Synthetic summarize tools for preview mode only
+        if (tool === 'summarize.tasks' || tool === 'summarize.text') {
+            return { ok: true, data: 'Summary generated (dry-run synthetic result).' };
+        }
+        return { ok: false, error: `Unknown tool: ${tool}` };
+    }
+    async requestApproval(_action) {
+        // Sprint 1: ask path can be handled by CLI; default reject if not overridden by caller
+        return false;
     }
     /**
      * Tool handler: List directory
