@@ -131,12 +131,12 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         if (this.orion)
             return;
         try {
-            console.log(chalk.blue('🚀 Initializing Orion...'));
+            console.log(chalk.blue('Initializing Orion...'));
             const config = await this.loadConfig();
             this.config = config;
             this.orion = new OrionCore(config);
             this.sessionId = this.orion.startSession('cli-user');
-            console.log(chalk.green('✅ Orion initialized successfully!'));
+            console.log(chalk.green('Orion initialized successfully.'));
             console.log(chalk.gray(`   Session ID: ${this.sessionId}`));
         }
         catch (error) {
@@ -147,35 +147,63 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
     async previewAndMaybeExecute(message, autoApproveLow) {
         if (!this.orion)
             return;
-        console.log(chalk.blue('🔎 Intent and action preview (dry-run)'));
+        console.log(chalk.blue('Intent and action preview (dry-run)'));
         const preview = await this.orion.previewActions(message);
         console.log(`${chalk.cyan('Intent:')} ${preview.intent}`);
         if (!preview.actions || preview.actions.length === 0) {
             console.log(chalk.yellow('No actions inferred.'));
             return;
         }
-        console.log(chalk.blue('🧩 Actions:'));
+        console.log(chalk.blue('Actions:'));
         preview.actions.forEach((a, i) => {
             const risk = a.risk || 'low';
             console.log(`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`);
         });
-        // Execute low-risk automatically if requested
-        if (autoApproveLow) {
-            console.log(chalk.dim('🔄 Executing low-risk actions...'));
-            // Override approval handler by temporarily monkey-patching requestApproval to approve low risk
-            const actions = preview.actions.map((a) => ({ ...a }));
-            // Call runActions and display results
-            const results = await this.orion.runActions(actions);
-            console.log(chalk.blue('📤 Results:'));
-            results.forEach((r, i) => {
-                if (r.ok) {
-                    console.log(`  ${i + 1}. ${chalk.green('OK')} ${chalk.cyan(r.tool)} (${r.durationMs}ms)`);
-                }
-                else {
-                    console.log(`  ${i + 1}. ${chalk.red('ERR')} ${chalk.cyan(r.tool)}: ${r.error}`);
-                }
-            });
+        // Sprint 2: Optional selection before execution
+        const { runSelection } = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'runSelection',
+                message: 'Execute which actions?',
+                choices: [
+                    { name: 'None (preview only)', value: 'none' },
+                    { name: 'All', value: 'all' },
+                    { name: 'Select subset', value: 'subset' },
+                ],
+                default: 'none',
+            },
+        ]);
+        let actionsToRun = preview.actions;
+        if (runSelection === 'none')
+            return;
+        if (runSelection === 'subset') {
+            const { selected } = await inquirer.prompt([
+                {
+                    type: 'checkbox',
+                    name: 'selected',
+                    message: 'Select actions to execute',
+                    choices: preview.actions.map((a, i) => ({
+                        name: `${i + 1}. ${a.tool} ${JSON.stringify(a.args)}`,
+                        value: i,
+                    })),
+                },
+            ]);
+            actionsToRun = selected.map(i => preview.actions[i]);
         }
+        if (actionsToRun.length === 0)
+            return;
+        // Execute with optional auto-approve for low-risk
+        console.log(chalk.dim('Executing selected actions...'));
+        const results = await this.orion.runActions(actionsToRun);
+        console.log(chalk.blue('Results:'));
+        results.forEach((r, i) => {
+            if (r.ok) {
+                console.log(`  ${i + 1}. ${chalk.green('OK')} ${chalk.cyan(r.tool)} (${r.durationMs}ms)`);
+            }
+            else {
+                console.log(`  ${i + 1}. ${chalk.red('ERR')} ${chalk.cyan(r.tool)}: ${r.error}`);
+            }
+        });
     }
     async loadConfig() {
         try {
@@ -233,20 +261,19 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
-        console.log(chalk.blue(`📅 Generating plan for ${options.date}...`));
+        console.log(chalk.blue(`Generating plan for ${options.date}...`));
         try {
             const response = await this.orion.generatePlan(this.sessionId, {
                 date: options.date,
             });
-            console.log(chalk.green('\n✨ Your Day Plan'));
+            console.log(chalk.green('\nYour Day Plan'));
             console.log(chalk.gray('='.repeat(50)));
             console.log(chalk.bold(response.plan.summary));
             console.log('');
-            console.log(chalk.blue('📋 Schedule:'));
+            console.log(chalk.blue('Schedule:'));
             response.plan.blocks.forEach((block) => {
                 const timeRange = `${block.start}-${block.end}`;
-                const typeEmoji = this.getTypeEmoji(block.type);
-                console.log(`  ${typeEmoji} ${chalk.cyan(timeRange)} ${block.label} ${chalk.gray(`(${block.type})`)}`);
+                console.log(`  ${chalk.cyan(timeRange)} ${block.label} ${chalk.gray(`(${block.type})`)}`);
             });
             if (response.needsClarification) {
                 console.log(chalk.yellow('\n❓ Questions for you:'));
@@ -280,7 +307,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
                 return;
             }
         }
-        console.log(chalk.green('💬 Starting interactive chat with Orion'));
+        console.log(chalk.green('Starting interactive chat with Orion'));
         console.log(chalk.gray('Type "exit" or "quit" to end the session\n'));
         let shouldContinue = true;
         while (shouldContinue) {
@@ -294,7 +321,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             const message = result.message;
             if (typeof message === 'string' &&
                 (message.toLowerCase() === 'exit' || message.toLowerCase() === 'quit')) {
-                console.log(chalk.yellow('👋 Goodbye!'));
+                console.log(chalk.yellow('Goodbye!'));
                 shouldContinue = false;
                 continue;
             }
@@ -321,8 +348,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
-        console.log(chalk.green('🤖 Starting OpenAI Agents SDK chat with Orion'));
-        console.log(chalk.magenta('✨ Enhanced with structured outputs, tool handoffs, and agent orchestration'));
+        console.log(chalk.green('Starting OpenAI Agents SDK chat with Orion'));
+        console.log(chalk.magenta('Enhanced with structured outputs, tool handoffs, and agent orchestration'));
         console.log(chalk.gray('Type "exit" or "quit" to end the session\n'));
         let shouldContinue = true;
         while (shouldContinue) {
@@ -336,15 +363,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             const message = result.message;
             if (typeof message === 'string' &&
                 (message.toLowerCase() === 'exit' || message.toLowerCase() === 'quit')) {
-                console.log(chalk.yellow('👋 Goodbye! Agent session ended.'));
+                console.log(chalk.yellow('Goodbye! Agent session ended.'));
                 shouldContinue = false;
                 continue;
             }
             if (typeof message === 'string') {
                 try {
-                    console.log(chalk.dim('🔄 Agent processing with tool handoffs...'));
+                    console.log(chalk.dim('Agent processing with tool handoffs...'));
                     const response = await this.orion.handleUserMessageWithAgent(message, this.sessionId, 'cli-user');
-                    console.log(chalk.green('🤖 Orion Agent:'), response);
+                    console.log(chalk.green('Orion Agent:'), response);
                     console.log('');
                 }
                 catch (error) {
@@ -354,7 +381,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         }
     }
     async showStatusCommand() {
-        console.log(chalk.blue('📊 Orion Status'));
+        console.log(chalk.blue('Orion Status'));
         console.log(chalk.gray('='.repeat(50)));
         console.log(`${chalk.cyan('Version:')} 1.0.0 (Phase 1A + Chunk 3.3 Complete)`);
         console.log(`${chalk.cyan('Status:')} ${chalk.green('Ready with Google Tasks Integration')}`);
@@ -372,11 +399,11 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.log(`${chalk.cyan('Default Model:')} ${chalk.magenta(this.config.agents.plannerModel)}`);
         }
         // Check environment
-        console.log(`\n${chalk.blue('🔧 Environment:')}`);
+        console.log(`\n${chalk.blue('Environment:')}`);
         console.log(`${chalk.cyan('Node.js:')} ${process.version}`);
         console.log(`${chalk.cyan('OpenAI API:')} ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Missing'}`);
         // Show available commands
-        console.log(`\n${chalk.blue('📋 Available Commands:')}`);
+        console.log(`\n${chalk.blue('Available Commands:')}`);
         console.log(`${chalk.cyan('orion interview-tasks')} - Start conversational task interview`);
         console.log(`${chalk.cyan('orion read-tasks')} - Display Google Tasks (table/json/summary)`);
         console.log(`${chalk.cyan('orion task-plan')} - Generate TaskPlan with scheduling`);
@@ -387,12 +414,12 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         if (this.orion && this.sessionId) {
             const session = this.orion.getSession(this.sessionId);
             if (session) {
-                console.log(`\n${chalk.blue('📱 Current Session:')}`);
+                console.log(`\n${chalk.blue('Current Session:')}`);
                 console.log(`${chalk.cyan('Session ID:')} ${session.sessionId}`);
                 console.log(`${chalk.cyan('State:')} ${session.state}`);
                 console.log(`${chalk.cyan('Pattern:')} ${session.pattern}`);
                 console.log(`${chalk.cyan('Messages:')} ${session.messages.length}`);
-                console.log(`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? '✅ Yes' : '❌ No'}`);
+                console.log(`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? 'Yes' : 'No'}`);
                 if (session.currentTaskPlan) {
                     const plan = session.currentTaskPlan;
                     console.log(`${chalk.cyan('Tasks Analyzed:')} ${plan.taskAnalysis.length}`);
@@ -402,27 +429,27 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
         }
         else {
-            console.log(`\n${chalk.yellow('⚠️ No active session. Run a command to initialize Orion.')}`);
+            console.log(`\n${chalk.yellow('No active session. Run a command to initialize Orion.')}`);
         }
         // List discovered tools
         try {
             const tools = await this.orion.listTools?.();
             if (tools && Array.isArray(tools)) {
-                console.log(`\n${chalk.blue('🧰 Tools:')}`);
+                console.log(`\n${chalk.blue('Tools:')}`);
                 tools.forEach((t) => {
                     console.log(`  • ${chalk.cyan(t.name)} - ${t.description} ${chalk.gray(`[${t.policy_tag}]`)}`);
                 });
             }
         }
         catch { }
-        console.log(`\n${chalk.blue('🚀 Quick Start:')}`);
+        console.log(`\n${chalk.blue('Quick Start:')}`);
         console.log(`1. ${chalk.cyan('orion auth --google-tasks')} - Set up authentication`);
         console.log(`2. ${chalk.cyan('orion interview-tasks')} - Start task planning conversation`);
         console.log(`3. ${chalk.cyan('orion debug --task-analysis')} - View your task plan`);
     }
     handleAuditCommand(_options) {
         // Phase 1A: Basic audit log viewing
-        console.log(chalk.blue('📋 Audit Log'));
+        console.log(chalk.blue('Audit Log'));
         console.log(chalk.gray('Phase 1A: Console-based audit logging'));
         console.log(chalk.yellow('Full audit log persistence coming in Phase 1B'));
     }
@@ -437,7 +464,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             return;
         }
         if (options.conversation) {
-            console.log(chalk.blue('💬 Conversation History'));
+            console.log(chalk.blue('Conversation History'));
             console.log(chalk.gray('='.repeat(50)));
             if (session.messages.length === 0) {
                 console.log(chalk.yellow('No messages in conversation history'));
@@ -452,7 +479,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             });
         }
         if (options.session) {
-            console.log(chalk.blue('📱 Session State'));
+            console.log(chalk.blue('Session State'));
             console.log(chalk.gray('='.repeat(50)));
             console.log(`${chalk.cyan('Session ID:')} ${session.sessionId}`);
             console.log(`${chalk.cyan('User ID:')} ${session.userId}`);
@@ -461,11 +488,11 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.log(`${chalk.cyan('Messages:')} ${session.messages.length}`);
             console.log(`${chalk.cyan('Events:')} ${session.events.length}`);
             console.log(`${chalk.cyan('Started:')} ${session.startTime.toLocaleString()}`);
-            console.log(`${chalk.cyan('Has DayPlan:')} ${session.currentPlan ? '✅' : '❌'}`);
-            console.log(`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? '✅' : '❌'}`);
+            console.log(`${chalk.cyan('Has DayPlan:')} ${session.currentPlan ? 'Yes' : 'No'}`);
+            console.log(`${chalk.cyan('Has TaskPlan:')} ${session.currentTaskPlan ? 'Yes' : 'No'}`);
         }
         if (options['task-analysis']) {
-            console.log(chalk.blue('🎯 Task Analysis'));
+            console.log(chalk.blue('Task Analysis'));
             console.log(chalk.gray('='.repeat(50)));
             if (session.currentTaskPlan) {
                 this.displayTaskPlan(session.currentTaskPlan);
@@ -485,15 +512,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
     }
     async handleAuthCommand(options) {
         if (options.googleTasks) {
-            console.log(chalk.blue('🔐 Google Tasks Authentication Setup'));
+            console.log(chalk.blue('Google Tasks Authentication Setup'));
             console.log(chalk.gray('='.repeat(50)));
             if (!this.orion) {
                 await this.initializeOrion();
             }
             try {
-                console.log(chalk.dim('🔄 Generating Google Tasks authorization URL...'));
+                console.log(chalk.dim('Generating Google Tasks authorization URL...'));
                 const authUrl = await this.orion.getGoogleTasksAuthUrl();
-                console.log(chalk.green('✅ Authorization URL generated!'));
+                console.log(chalk.green('Authorization URL generated!'));
                 console.log('');
                 console.log(chalk.bold('1. Open this URL in your browser:'));
                 console.log(chalk.cyan(authUrl));
@@ -510,15 +537,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
                     },
                 ]);
                 if (result.code && typeof result.code === 'string' && result.code.trim()) {
-                    console.log(chalk.dim('🔄 Exchanging authorization code for tokens...'));
+                    console.log(chalk.dim('Exchanging authorization code for tokens...'));
                     const tokens = await this.orion.exchangeGoogleTasksAuthCode(result.code.trim());
                     // Set the tokens in Orion for immediate use
                     this.orion.setGoogleTasksTokens(tokens);
-                    console.log(chalk.green('✅ Google Tasks authentication successful!'));
+                    console.log(chalk.green('Google Tasks authentication successful!'));
                     console.log(chalk.gray('You can now use commands like: orion read-tasks'));
                 }
                 else {
-                    console.log(chalk.yellow('⚠️ No authorization code provided. Authentication cancelled.'));
+                    console.log(chalk.yellow('No authorization code provided. Authentication cancelled.'));
                 }
             }
             catch (error) {
@@ -526,18 +553,18 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
         }
         if (options.status) {
-            console.log(chalk.blue('🔐 Authentication Status'));
+            console.log(chalk.blue('Authentication Status'));
             console.log(chalk.gray('='.repeat(50)));
             // Check OpenAI API key
             const hasOpenAI = !!process.env.OPENAI_API_KEY;
-            console.log(`${chalk.cyan('OpenAI API:')} ${hasOpenAI ? chalk.green('✅ Configured') : chalk.red('❌ Missing')}`);
+            console.log(`${chalk.cyan('OpenAI API:')} ${hasOpenAI ? chalk.green('Configured') : chalk.red('Missing')}`);
             // Check Google Tasks (this would require checking stored tokens)
-            console.log(`${chalk.cyan('Google Tasks:')} ${chalk.yellow('⚠️ Status check not implemented')}`);
+            console.log(`${chalk.cyan('Google Tasks:')} ${chalk.yellow('Status check not implemented')}`);
             console.log(chalk.gray('Run: orion auth --google-tasks to set up Google Tasks authentication'));
         }
         // If no specific options, show help
         if (!options.googleTasks && !options.status) {
-            console.log(chalk.blue('🔐 Authentication Management'));
+            console.log(chalk.blue('Authentication Management'));
             console.log(chalk.gray('Available auth options:'));
             console.log('  --google-tasks   Set up Google Tasks OAuth2 authentication');
             console.log('  --status         Show authentication status');
@@ -549,15 +576,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
-        console.log(chalk.blue('🎯 Starting conversational task interview...'));
+        console.log(chalk.blue('Starting conversational task interview...'));
         console.log(chalk.gray("I'll read your Google Tasks and help you plan your day through conversation."));
         console.log('');
         try {
             // Start the conversational interview workflow
             const message = `Help me plan my tasks. ${options['include-completed'] ? 'Include completed tasks in the analysis.' : 'Focus on incomplete tasks only.'} ${options['all-lists'] ? 'Look at all my task lists.' : 'Use my primary task list.'}`;
-            console.log(chalk.dim('🔄 Reading your Google Tasks and starting interview...'));
+            console.log(chalk.dim('Reading your Google Tasks and starting interview...'));
             const response = await this.orion.handleUserMessageWithAgent(message, this.sessionId, 'cli-user');
-            console.log(chalk.green('🤖 Orion:'), response);
+            console.log(chalk.green('Orion:'), response);
             console.log('');
             // Continue conversational loop
             await this.continueTaskInterview();
@@ -571,7 +598,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
-        console.log(chalk.blue('📋 Reading Google Tasks...'));
+        console.log(chalk.blue('Reading Google Tasks...'));
         try {
             // Use the handleReadTasks method from OrionCore
             const taskListIds = options['list-id'] ? [options['list-id']] : undefined;
@@ -585,7 +612,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
             // Display tasks based on format
             const { tasks, taskLists, totalTasks } = result;
-            console.log(chalk.green(`✅ Found ${totalTasks} tasks from ${taskLists.length} task lists`));
+            console.log(chalk.green(`Found ${totalTasks} tasks from ${taskLists.length} task lists`));
             console.log('');
             switch (options.format) {
                 case 'json':
@@ -607,13 +634,13 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
-        console.log(chalk.blue(`🎯 Generating TaskPlan for ${options.date}...`));
+        console.log(chalk.blue(`Generating TaskPlan for ${options.date}...`));
         try {
             const userMessage = options['user-message'] ||
                 `Generate a task plan for ${options.date}. Please read my Google Tasks and create a structured plan with scheduling recommendations.`;
-            console.log(chalk.dim('🔄 Analyzing tasks and generating plan...'));
+            console.log(chalk.dim('Analyzing tasks and generating plan...'));
             const response = await this.orion.handleUserMessageWithAgent(userMessage, this.sessionId, 'cli-user');
-            console.log(chalk.green('🎯 TaskPlan Generated:'));
+            console.log(chalk.green('TaskPlan Generated:'));
             console.log(chalk.gray('='.repeat(60)));
             // Try to parse TaskPlan from response for better formatting
             try {
@@ -621,6 +648,63 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
                 if (taskPlanMatch) {
                     const taskPlan = JSON.parse(taskPlanMatch[1]);
                     this.displayTaskPlan(taskPlan);
+                    // Sprint 2: Convert TaskPlan → Actions and optionally execute subset
+                    const actions = this.orion.convertTaskPlanToActions(taskPlan);
+                    if (actions && actions.length > 0) {
+                        console.log('');
+                        console.log(chalk.blue('Proposed Actions from TaskPlan:'));
+                        actions.forEach((a, i) => {
+                            const risk = a.risk || 'medium';
+                            console.log(`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`);
+                        });
+                        const { runSelection } = await inquirer.prompt([
+                            {
+                                type: 'list',
+                                name: 'runSelection',
+                                message: 'Execute which actions?',
+                                choices: [
+                                    { name: 'None (preview only)', value: 'none' },
+                                    { name: 'All', value: 'all' },
+                                    { name: 'Select subset', value: 'subset' },
+                                ],
+                                default: 'none',
+                            },
+                        ]);
+                        let actionsToRun = actions;
+                        if (runSelection !== 'none') {
+                            if (runSelection === 'subset') {
+                                const { selected } = await inquirer.prompt([
+                                    {
+                                        type: 'checkbox',
+                                        name: 'selected',
+                                        message: 'Select actions to execute',
+                                        choices: actions.map((a, i) => ({
+                                            name: `${i + 1}. ${a.tool} ${JSON.stringify(a.args)}`,
+                                            value: i,
+                                        })),
+                                    },
+                                ]);
+                                actionsToRun = selected.map(i => actions[i]);
+                            }
+                            if (actionsToRun.length > 0) {
+                                console.log(chalk.dim('Executing selected actions...'));
+                                const results = await this.orion.runActions(actionsToRun);
+                                console.log(chalk.blue('Results:'));
+                                results.forEach((r, i) => {
+                                    if (r.ok) {
+                                        console.log(`  ${i + 1}. ${chalk.green('OK')} ${chalk.cyan(r.tool)} (${r.durationMs}ms)`);
+                                    }
+                                    else {
+                                        console.log(`  ${i + 1}. ${chalk.red('ERR')} ${chalk.cyan(r.tool)}: ${r.error}`);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    else {
+                        // Fallback to plain text display
+                        console.log(response);
+                    }
                 }
                 else {
                     // Fallback to plain text display
@@ -653,15 +737,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
                 (message.toLowerCase() === 'done' ||
                     message.toLowerCase() === 'exit' ||
                     message.toLowerCase() === 'quit')) {
-                console.log(chalk.green('✅ Task interview completed!'));
+                console.log(chalk.green('Task interview completed.'));
                 shouldContinue = false;
                 continue;
             }
             if (typeof message === 'string' && message.trim()) {
                 try {
-                    console.log(chalk.dim('🔄 Processing your response...'));
+                    console.log(chalk.dim('Processing your response...'));
                     const response = await this.orion.handleUserMessageWithAgent(message, this.sessionId, 'cli-user');
-                    console.log(chalk.green('🤖 Orion:'), response);
+                    console.log(chalk.green('Orion:'), response);
                     console.log('');
                 }
                 catch (error) {
@@ -673,7 +757,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
     // Display formatting methods for new workflow (Chunk 3.3)
     displayTasksTable(tasks, taskLists) {
         if (tasks.length === 0) {
-            console.log(chalk.yellow('📭 No tasks found'));
+            console.log(chalk.yellow('No tasks found'));
             return;
         }
         // Group tasks by list
@@ -689,17 +773,16 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         tasksByList.forEach((listTasks, listId) => {
             const taskList = taskLists.find(list => list.id === listId);
             const listTitle = taskList?.title || `Unknown List (${listId})`;
-            console.log(chalk.cyan(`\n📋 ${listTitle}`));
+            console.log(chalk.cyan(`\n${listTitle}`));
             console.log(chalk.gray('-'.repeat(50)));
             listTasks.forEach(task => {
-                const statusEmoji = task.status === 'completed' ? '✅' : '⏳';
-                const priorityIndicator = task.due ? '🔥' : '';
+                const statusText = task.status === 'completed' ? '[completed]' : '';
                 const dueDate = task.due
                     ? chalk.yellow(`(due: ${new Date(task.due).toLocaleDateString()})`)
                     : '';
-                console.log(`  ${statusEmoji} ${priorityIndicator} ${chalk.bold(task.title)} ${dueDate}`);
+                console.log(`  ${chalk.bold(task.title)} ${statusText} ${dueDate}`);
                 if (task.notes) {
-                    console.log(chalk.gray(`     💭 ${task.notes.substring(0, 80)}${task.notes.length > 80 ? '...' : ''}`));
+                    console.log(chalk.gray(`     ${task.notes.substring(0, 80)}${task.notes.length > 80 ? '...' : ''}`));
                 }
                 if (task.level > 0) {
                     console.log(chalk.dim(`     └─ Subtask (level ${task.level})`));
@@ -712,47 +795,47 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         const pendingCount = tasks.filter(t => t.status === 'needsAction').length;
         const withDueDates = tasks.filter(t => t.due).length;
         const overdue = tasks.filter(t => t.due && new Date(t.due) < new Date()).length;
-        console.log(chalk.blue('📊 Task Summary'));
+        console.log(chalk.blue('Task Summary'));
         console.log(chalk.gray('='.repeat(30)));
-        console.log(`${chalk.green('✅ Completed:')} ${completedCount}`);
-        console.log(`${chalk.yellow('⏳ Pending:')} ${pendingCount}`);
-        console.log(`${chalk.cyan('📅 With due dates:')} ${withDueDates}`);
+        console.log(`${chalk.green('Completed:')} ${completedCount}`);
+        console.log(`${chalk.yellow('Pending:')} ${pendingCount}`);
+        console.log(`${chalk.cyan('With due dates:')} ${withDueDates}`);
         if (overdue > 0) {
-            console.log(`${chalk.red('🔥 Overdue:')} ${overdue}`);
+            console.log(`${chalk.red('Overdue:')} ${overdue}`);
         }
-        console.log(`${chalk.blue('📋 Task lists:')} ${taskLists.length}`);
+        console.log(`${chalk.blue('Task lists:')} ${taskLists.length}`);
         // Show task lists
-        console.log('\n📂 Task Lists:');
+        console.log('\nTask Lists:');
         taskLists.forEach(list => {
             const listTasks = tasks.filter(t => t.listId === list.id);
             console.log(`  • ${chalk.cyan(list.title)} (${listTasks.length} tasks)`);
         });
     }
     displayTaskPlan(taskPlan) {
-        console.log(chalk.bold(`📅 Plan Date: ${taskPlan.planDate}`));
-        console.log(chalk.gray(`💬 Summary: ${taskPlan.conversationSummary}`));
+        console.log(chalk.bold(`Plan Date: ${taskPlan.planDate}`));
+        console.log(chalk.gray(`Summary: ${taskPlan.conversationSummary}`));
         console.log('');
         // Display task analysis
         if (taskPlan.taskAnalysis && taskPlan.taskAnalysis.length > 0) {
-            console.log(chalk.blue('🎯 Task Analysis:'));
+            console.log(chalk.blue('Task Analysis:'));
             taskPlan.taskAnalysis.forEach((analysis, index) => {
                 const priorityColor = this.getPriorityColor(analysis.priority);
                 const complexityEmoji = this.getComplexityEmoji(analysis.complexity);
                 console.log(`${index + 1}. ${chalk.bold(analysis.title)}`);
-                console.log(`   ${priorityColor(`Priority: ${analysis.priority}`)} | ${complexityEmoji} ${analysis.complexity} | ⏱️  ${analysis.estimatedDuration}min`);
-                console.log(`   📅 Suggested: ${analysis.suggestedSchedule.preferredDate} ${analysis.suggestedSchedule.preferredTimeSlot || ''}`);
+                console.log(`   ${priorityColor(`Priority: ${analysis.priority}`)} | ${complexityEmoji} ${analysis.complexity} | Duration: ${analysis.estimatedDuration}min`);
+                console.log(`   Suggested: ${analysis.suggestedSchedule.preferredDate} ${analysis.suggestedSchedule.preferredTimeSlot || ''}`);
                 if (analysis.context.blockers && analysis.context.blockers.length > 0) {
-                    console.log(`   🚫 Blockers: ${analysis.context.blockers.join(', ')}`);
+                    console.log(`   Blockers: ${analysis.context.blockers.join(', ')}`);
                 }
                 if (analysis.dependencies && analysis.dependencies.length > 0) {
-                    console.log(`   🔗 Depends on: ${analysis.dependencies.join(', ')}`);
+                    console.log(`   Depends on: ${analysis.dependencies.join(', ')}`);
                 }
                 console.log('');
             });
         }
         // Display questions if any
         if (taskPlan.questions && taskPlan.questions.length > 0) {
-            console.log(chalk.yellow('❓ Follow-up Questions:'));
+            console.log(chalk.yellow('Follow-up Questions:'));
             taskPlan.questions.forEach((q, index) => {
                 console.log(`${index + 1}. ${q.question}`);
                 if (q.options) {
@@ -763,17 +846,17 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
         }
         // Display calendar suggestions
         if (taskPlan.calendarSuggestions && taskPlan.calendarSuggestions.length > 0) {
-            console.log(chalk.green('📅 Calendar Suggestions:'));
+            console.log(chalk.green('Calendar Suggestions:'));
             taskPlan.calendarSuggestions.forEach((suggestion, index) => {
                 console.log(`${index + 1}. ${chalk.bold(suggestion.eventTitle)}`);
-                console.log(`   📅 ${suggestion.suggestedDate} ${suggestion.suggestedTime || ''} (${suggestion.duration}min)`);
-                console.log(`   📝 ${suggestion.description}`);
+                console.log(`   ${suggestion.suggestedDate} ${suggestion.suggestedTime || ''} (${suggestion.duration}min)`);
+                console.log(`   ${suggestion.description}`);
                 console.log('');
             });
         }
         // Display next steps
         if (taskPlan.nextSteps && taskPlan.nextSteps.length > 0) {
-            console.log(chalk.magenta('🚀 Next Steps:'));
+            console.log(chalk.magenta('Next Steps:'));
             taskPlan.nextSteps.forEach((step, index) => {
                 console.log(`${index + 1}. ${step}`);
             });

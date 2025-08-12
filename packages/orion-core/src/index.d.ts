@@ -4,6 +4,7 @@
  */
 import 'dotenv/config';
 import { type Action } from './action-engine.js';
+import type { TaskPlan } from '@orion/planner-llm';
 import type { OrionConfig, PlanRequest, PlanResponse, SessionContext } from './types.js';
 export * from './types.js';
 export declare class OrionCore {
@@ -21,6 +22,12 @@ export declare class OrionCore {
     private orionAgent;
     private agentContext;
     constructor(config: OrionConfig);
+    /**
+     * Sprint 2: Convert a TaskPlan into an executable Action list (ActionGraph v0: linear)
+     * - calendarSuggestions → calendar.create_event (medium risk)
+     * - nextSteps → journal.add_entry (medium risk)
+     */
+    convertTaskPlanToActions(plan: TaskPlan): Action[];
     /**
      * Start a new conversation session
      */

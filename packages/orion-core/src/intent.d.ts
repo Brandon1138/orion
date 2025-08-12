@@ -1,7 +1,7 @@
 /**
  * IntentRouter - Sprint 1 minimal rule + heuristic LLM-less classifier
  */
-export type Intent = 'read_tasks' | 'summarize' | 'web_fetch' | 'unknown';
+export type Intent = 'read_tasks' | 'summarize' | 'web_fetch' | 'plan' | 'unknown';
 export interface IntentRoute {
     intent: Intent;
     actions: Array<{

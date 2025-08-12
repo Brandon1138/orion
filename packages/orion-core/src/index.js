@@ -46,8 +46,9 @@ export class OrionCore {
             temperature: config.agents.plannerTemperature ?? 1, // Default to 1 if not specified
             fallbackModel: config.agents.fallbackModel,
         });
-        // Initialize MCP client with policy
-        this.mcpClient = new MCPClient([{ id: 'local-fs', endpoint: 'stdio', scopes: ['fs.read', 'fs.list', 'fs.search'] }], {
+        // Initialize MCP client with policy (prefer config overrides)
+        const mcp = config.mcp ?? {
+            servers: [{ id: 'local-fs', endpoint: 'stdio', scopes: ['fs.read', 'fs.list', 'fs.search'] }],
             fsAllow: ['./fixtures/**', './packages/**', './docs/**'],
             fsDeny: ['./node_modules/**', './.git/**'],
             commandPolicy: {
@@ -55,15 +56,19 @@ export class OrionCore {
                 deny: ['rm', 'del', 'format', 'mkfs', 'sudo'],
                 default: 'block',
             },
-            rateLimits: {
-                operationsPerMinute: 10,
-                maxFileSize: '1MB',
-                timeoutSeconds: 30,
-            },
+            rateLimits: { operationsPerMinute: 10, maxFileSize: '1MB', timeoutSeconds: 30 },
+        };
+        this.mcpClient = new MCPClient(mcp.servers, {
+            fsAllow: mcp.fsAllow,
+            fsDeny: mcp.fsDeny,
+            commandPolicy: mcp.commandPolicy,
+            rateLimits: mcp.rateLimits,
         });
         this.commandRouter = new CommandRouter(this.mcpClient);
         // Sprint 1: Tool registry, intent router, and action engine
-        this.toolRegistry = new ToolRegistry({ allowlist: ['https://example.com', 'https://raw.githubusercontent.com/'] });
+        this.toolRegistry = new ToolRegistry({
+            allowlist: config.web?.allowlist ?? ['https://example.com'],
+        });
         this.intentRouter = new IntentRouter();
         this.actionEngine = new ActionEngine(async (tool, args) => this.executeTool(tool, args), async (action) => this.requestApproval(action), (event, payload) => this.auditLog(event, payload));
         // Initialize OpenAI client for conversation management
@@ -73,6 +78,46 @@ export class OrionCore {
         // Initialize OpenAI Agents SDK components (Chunk 3.2)
         this.orionAgent = createOrionAgent(config);
         this.agentContext = createOrionContext(config);
+    }
+    /**
+     * Sprint 2: Convert a TaskPlan into an executable Action list (ActionGraph v0: linear)
+     * - calendarSuggestions → calendar.create_event (medium risk)
+     * - nextSteps → journal.add_entry (medium risk)
+     */
+    convertTaskPlanToActions(plan) {
+        const actions = [];
+        // Calendar suggestions → event creations
+        if (Array.isArray(plan.calendarSuggestions)) {
+            for (const s of plan.calendarSuggestions) {
+                actions.push({
+                    tool: 'calendar.create_event',
+                    risk: 'medium',
+                    args: {
+                        title: s.eventTitle,
+                        date: s.suggestedDate,
+                        time: s.suggestedTime,
+                        durationMins: s.duration,
+                        description: s.description,
+                        sourceTaskId: s.taskId,
+                    },
+                });
+            }
+        }
+        // Next steps → journal entries (placeholder write op)
+        if (Array.isArray(plan.nextSteps)) {
+            for (const step of plan.nextSteps) {
+                actions.push({
+                    tool: 'journal.add_entry',
+                    risk: 'medium',
+                    args: {
+                        text: step,
+                        planDate: plan.planDate,
+                        category: 'planning-next-step',
+                    },
+                });
+            }
+        }
+        return actions;
     }
     /**
      * Start a new conversation session
@@ -961,6 +1006,38 @@ Remember: You're conducting conversational interviews to help users plan their t
             const result = await this.mcpClient.execute({ serverId: 'local-fs', tool, args });
             return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
         }
+        // Sprint 2: pseudo calendar/journal tools for preview mode
+        if (tool === 'calendar.create_event') {
+            // Phase 1A: return preview only; actual writes gated by approval
+            return {
+                ok: true,
+                data: {
+                    kind: 'preview',
+                    message: 'Would create calendar event (dry-run preview).',
+                    args,
+                },
+            };
+        }
+        if (tool === 'calendar.update_event') {
+            return {
+                ok: true,
+                data: {
+                    kind: 'preview',
+                    message: 'Would update calendar event (dry-run preview).',
+                    args,
+                },
+            };
+        }
+        if (tool === 'journal.add_entry') {
+            return {
+                ok: true,
+                data: {
+                    kind: 'preview',
+                    message: 'Would append journal entry (dry-run preview).',
+                    args,
+                },
+            };
+        }
         if (tool === 'web.fetch') {
             const url = String(args['url'] ?? '');
             if (!this.toolRegistry.isUrlAllowed(url)) {
@@ -973,6 +1050,15 @@ Remember: You're conducting conversational interviews to help users plan their t
             }
             catch (err) {
                 return { ok: false, error: err instanceof Error ? err.message : 'Fetch failed' };
+            }
+        }
+        if (tool === 'conduct_task_interview') {
+            try {
+                const result = await this.handleConductTaskInterview(args);
+                return { ok: true, data: result };
+            }
+            catch (error) {
+                return { ok: false, error: error instanceof Error ? error.message : 'Interview failed' };
             }
         }
         // Synthetic summarize tools for preview mode only

@@ -108,7 +108,11 @@ export class OrionCore {
 			servers: [{ id: 'local-fs', endpoint: 'stdio', scopes: ['fs.read', 'fs.list', 'fs.search'] }],
 			fsAllow: ['./fixtures/**', './packages/**', './docs/**'],
 			fsDeny: ['./node_modules/**', './.git/**'],
-			commandPolicy: { allow: [], deny: ['rm', 'del', 'format', 'mkfs', 'sudo'], default: 'block' as const },
+			commandPolicy: {
+				allow: [],
+				deny: ['rm', 'del', 'format', 'mkfs', 'sudo'],
+				default: 'block' as const,
+			},
 			rateLimits: { operationsPerMinute: 10, maxFileSize: '1MB', timeoutSeconds: 30 },
 		};
 		this.mcpClient = new MCPClient(mcp.servers, {
@@ -121,12 +125,14 @@ export class OrionCore {
 		this.commandRouter = new CommandRouter(this.mcpClient);
 
 		// Sprint 1: Tool registry, intent router, and action engine
-		this.toolRegistry = new ToolRegistry({ allowlist: config.web?.allowlist ?? ['https://example.com'] });
+		this.toolRegistry = new ToolRegistry({
+			allowlist: config.web?.allowlist ?? ['https://example.com'],
+		});
 		this.intentRouter = new IntentRouter();
 		this.actionEngine = new ActionEngine(
 			async (tool, args) => this.executeTool(tool, args),
-			async (action) => this.requestApproval(action),
-			(event, payload) => this.auditLog(event, payload),
+			async action => this.requestApproval(action),
+			(event, payload) => this.auditLog(event, payload)
 		);
 
 		// Initialize OpenAI client for conversation management
@@ -137,6 +143,49 @@ export class OrionCore {
 		// Initialize OpenAI Agents SDK components (Chunk 3.2)
 		this.orionAgent = createOrionAgent(config);
 		this.agentContext = createOrionContext(config);
+	}
+
+	/**
+	 * Sprint 2: Convert a TaskPlan into an executable Action list (ActionGraph v0: linear)
+	 * - calendarSuggestions → calendar.create_event (medium risk)
+	 * - nextSteps → journal.add_entry (medium risk)
+	 */
+	convertTaskPlanToActions(plan: TaskPlan): Action[] {
+		const actions: Action[] = [];
+		// Calendar suggestions → event creations
+		if (Array.isArray(plan.calendarSuggestions)) {
+			for (const s of plan.calendarSuggestions) {
+				actions.push({
+					tool: 'calendar.create_event',
+					risk: 'medium',
+					args: {
+						title: s.eventTitle,
+						date: s.suggestedDate,
+						time: s.suggestedTime,
+						durationMins: s.duration,
+						description: s.description,
+						sourceTaskId: s.taskId,
+					},
+				});
+			}
+		}
+
+		// Next steps → journal entries (placeholder write op)
+		if (Array.isArray(plan.nextSteps)) {
+			for (const step of plan.nextSteps) {
+				actions.push({
+					tool: 'journal.add_entry',
+					risk: 'medium',
+					args: {
+						text: step,
+						planDate: plan.planDate,
+						category: 'planning-next-step',
+					},
+				});
+			}
+		}
+
+		return actions;
 	}
 
 	/**
@@ -1134,10 +1183,48 @@ Remember: You're conducting conversational interviews to help users plan their t
 	}
 
 	// Sprint 1: minimal tool executor bridging to MCP and native tools
-	private async executeTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+	private async executeTool(
+		tool: string,
+		args: Record<string, unknown>
+	): Promise<{ ok: boolean; data?: unknown; error?: string }> {
 		if (tool.startsWith('fs.')) {
 			const result = await this.mcpClient.execute({ serverId: 'local-fs', tool, args });
 			return { ok: result.ok, data: result.stdout ?? result['data'], error: result.error };
+		}
+
+		// Sprint 2: pseudo calendar/journal tools for preview mode
+		if (tool === 'calendar.create_event') {
+			// Phase 1A: return preview only; actual writes gated by approval
+			return {
+				ok: true,
+				data: {
+					kind: 'preview',
+					message: 'Would create calendar event (dry-run preview).',
+					args,
+				},
+			};
+		}
+
+		if (tool === 'calendar.update_event') {
+			return {
+				ok: true,
+				data: {
+					kind: 'preview',
+					message: 'Would update calendar event (dry-run preview).',
+					args,
+				},
+			};
+		}
+
+		if (tool === 'journal.add_entry') {
+			return {
+				ok: true,
+				data: {
+					kind: 'preview',
+					message: 'Would append journal entry (dry-run preview).',
+					args,
+				},
+			};
 		}
 
 		if (tool === 'web.fetch') {
@@ -1154,6 +1241,15 @@ Remember: You're conducting conversational interviews to help users plan their t
 			}
 		}
 
+		if (tool === 'conduct_task_interview') {
+			try {
+				const result = await this.handleConductTaskInterview(args);
+				return { ok: true, data: result };
+			} catch (error) {
+				return { ok: false, error: error instanceof Error ? error.message : 'Interview failed' };
+			}
+		}
+
 		// Synthetic summarize tools for preview mode only
 		if (tool === 'summarize.tasks' || tool === 'summarize.text') {
 			return { ok: true, data: 'Summary generated (dry-run synthetic result).' };
@@ -1162,7 +1258,11 @@ Remember: You're conducting conversational interviews to help users plan their t
 		return { ok: false, error: `Unknown tool: ${tool}` };
 	}
 
-	private async requestApproval(_action: { tool: string; args: Record<string, unknown>; risk?: 'low'|'medium'|'high' }): Promise<boolean> {
+	private async requestApproval(_action: {
+		tool: string;
+		args: Record<string, unknown>;
+		risk?: 'low' | 'medium' | 'high';
+	}): Promise<boolean> {
 		// Sprint 1: ask path can be handled by CLI; default reject if not overridden by caller
 		return false;
 	}

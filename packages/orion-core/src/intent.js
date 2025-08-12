@@ -4,6 +4,22 @@
 export class IntentRouter {
     classify(message) {
         const m = message.toLowerCase();
+        // Sprint 2: detect planning intent
+        const planningKeywords = [
+            'plan',
+            'schedule',
+            'calendar',
+            'tomorrow',
+            'today',
+            'this week',
+            'next week',
+            'block time',
+            'time block',
+            'due',
+            'deadline',
+        ];
+        if (planningKeywords.some(k => m.includes(k)))
+            return 'plan';
         if (m.includes('task') || m.includes('todo') || m.includes('to-do'))
             return 'read_tasks';
         if (m.includes('summarize') || m.includes('summary'))
@@ -29,6 +45,18 @@ export class IntentRouter {
                 const url = this.extractUrl(message);
                 return { intent, actions: [{ tool: 'web.fetch', args: { url }, risk: 'medium' }] };
             }
+            case 'plan':
+                // Sprint 2: route to planning workflow. Preview-only synthetic action for CLI dry-run
+                return {
+                    intent,
+                    actions: [
+                        {
+                            tool: 'conduct_task_interview',
+                            args: { userMessage: message },
+                            risk: 'low',
+                        },
+                    ],
+                };
             default:
                 return { intent: 'unknown', actions: [] };
         }
