@@ -30,11 +30,27 @@ export interface ToolExecutor {
 export interface AuditLogger {
     (event: string, payload: Record<string, unknown>): void;
 }
+export type ReflectionGuard = (action: Action) => Promise<{
+    ok: true;
+} | {
+    ok: false;
+    reason: string;
+}>;
+export interface RetryPolicy {
+    maxAttempts: number;
+    baseDelayMs: number;
+    jitterMs: number;
+}
 export declare class ActionEngine {
     private executeTool;
     private requestApproval;
     private audit;
-    constructor(executeTool: ToolExecutor, requestApproval: ApprovalHandler, audit: AuditLogger);
+    private guard?;
+    private retry;
+    constructor(executeTool: ToolExecutor, requestApproval: ApprovalHandler, audit: AuditLogger, options?: {
+        guard?: ReflectionGuard;
+        retry?: Partial<RetryPolicy>;
+    });
     run(actions: Action[]): Promise<ActionResult[]>;
     private redactArgs;
 }

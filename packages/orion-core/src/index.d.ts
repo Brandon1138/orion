@@ -3,6 +3,7 @@
  * Task interviewing workflow with Google Tasks integration
  */
 import 'dotenv/config';
+import { type MemoryItem } from './memory.js';
 import { type Action, type ApprovalHandler } from './action-engine.js';
 import type { TaskPlan } from '@orion/planner-llm';
 import type { OrionConfig, PlanRequest, PlanResponse, SessionContext } from './types.js';
@@ -20,9 +21,15 @@ export declare class OrionCore {
     private openai;
     private sessions;
     private approvalHandler?;
+    private memory;
+    private auditListener?;
     private orionAgent;
     private agentContext;
     constructor(config: OrionConfig);
+    /**
+     * Allow host (web/CLI) to subscribe to audit events
+     */
+    onAudit(listener: (event: string, payload: Record<string, unknown>) => void): void;
     /**
      * Sprint 2: Convert a TaskPlan into an executable Action list (ActionGraph v0: linear)
      * - calendarSuggestions → calendar.create_event (medium risk)
@@ -153,6 +160,14 @@ export declare class OrionCore {
     private executeTool;
     private resolveKeyRef;
     private requestApproval;
+    /**
+     * Sprint 4: Reflection guard before writes
+     * - Validate args against tool schema when available
+     * - Enforce Phase 1A read-only policy for disallowed writes
+     */
+    private reflectBeforeWrite;
+    private validateArgsAgainstSchema;
+    getRecentMemory(sessionId: string, limit?: number): MemoryItem[];
     /**
      * Tool handler: List directory
      */

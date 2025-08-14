@@ -81,3 +81,5 @@ playwright-report/
 commands/
 NOTE.md
 SPEC.md
+
+packages/web/.next/

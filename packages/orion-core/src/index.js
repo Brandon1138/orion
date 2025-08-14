@@ -11,6 +11,7 @@ import { TaskParser } from '@orion/task-parser';
 import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
 import { ToolRegistry } from './tools.js';
+import MemoryStore from './memory.js';
 import { IntentRouter } from './intent.js';
 import { ActionEngine } from './action-engine.js';
 import { CommandRouter } from '@orion/command-router';
@@ -29,6 +30,8 @@ export class OrionCore {
     openai;
     sessions = new Map();
     approvalHandler;
+    memory;
+    auditListener;
     // OpenAI Agents SDK Integration (Chunk 3.2)
     orionAgent;
     agentContext;
@@ -71,7 +74,11 @@ export class OrionCore {
             allowlist: config.web?.allowlist ?? ['https://example.com'],
         });
         this.intentRouter = new IntentRouter();
-        this.actionEngine = new ActionEngine(async (tool, args) => this.executeTool(tool, args), async (action) => this.requestApproval(action), (event, payload) => this.auditLog(event, payload));
+        this.memory = new MemoryStore({ ttlSeconds: 3600, maxItems: 200, snapshotPath: './logs/memory' });
+        this.actionEngine = new ActionEngine(async (tool, args) => this.executeTool(tool, args), async (action) => this.requestApproval(action), (event, payload) => this.auditLog(event, payload), {
+            guard: async (action) => this.reflectBeforeWrite(action),
+            retry: { maxAttempts: 3, baseDelayMs: 300, jitterMs: 200 },
+        });
         // Initialize OpenAI client for conversation management
         this.openai = new OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
@@ -79,6 +86,12 @@ export class OrionCore {
         // Initialize OpenAI Agents SDK components (Chunk 3.2)
         this.orionAgent = createOrionAgent(config);
         this.agentContext = createOrionContext(config);
+    }
+    /**
+     * Allow host (web/CLI) to subscribe to audit events
+     */
+    onAudit(listener) {
+        this.auditListener = listener;
     }
     /**
      * Sprint 2: Convert a TaskPlan into an executable Action list (ActionGraph v0: linear)
@@ -136,6 +149,7 @@ export class OrionCore {
             startTime: new Date(),
         };
         this.sessions.set(sessionId, session);
+        void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'event', data: { type: 'session_start', userId } });
         this.auditLog('session_start', { sessionId, userId });
         return sessionId;
     }
@@ -427,6 +441,7 @@ export class OrionCore {
                 content: userMessage,
                 timestamp: new Date(),
             });
+            void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'user', content: userMessage } });
             // Build conversation history for OpenAI
             const messages = this.buildConversationHistory(session);
             // Use OpenAI with function calling for tool integration
@@ -462,6 +477,7 @@ export class OrionCore {
                     content: finalMessage,
                     timestamp: new Date(),
                 });
+                void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content: finalMessage } });
                 this.auditLog('message_processed', {
                     sessionId,
                     pattern: session.pattern,
@@ -481,6 +497,7 @@ export class OrionCore {
                     content,
                     timestamp: new Date(),
                 });
+                void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content } });
                 this.auditLog('message_processed', {
                     sessionId,
                     pattern: session.pattern,
@@ -820,10 +837,14 @@ Remember: You're conducting conversational interviews to help users plan their t
     async handleToolCalls(toolCalls) {
         const results = [];
         for (const toolCall of toolCalls) {
+            const toolName = toolCall.function.name;
+            const start = Date.now();
+            // Emit start event (no args to avoid leaking sensitive values)
+            this.auditLog('tool_called', { tool: toolName, sessionId: this.agentContext.sessionId });
             try {
                 let result;
                 const args = JSON.parse(toolCall.function.arguments);
-                switch (toolCall.function.name) {
+                switch (toolName) {
                     case 'conduct_task_interview':
                         result = await this.handleConductTaskInterview(args);
                         break;
@@ -848,6 +869,12 @@ Remember: You're conducting conversational interviews to help users plan their t
                     default:
                         result = { success: false, error: `Unknown tool: ${toolCall.function.name}` };
                 }
+                // Emit completion event (success path)
+                this.auditLog('completed', {
+                    tool: toolName,
+                    durationMs: Date.now() - start,
+                    sessionId: this.agentContext.sessionId,
+                });
                 results.push({
                     role: 'tool',
                     content: JSON.stringify(result),
@@ -855,6 +882,13 @@ Remember: You're conducting conversational interviews to help users plan their t
                 });
             }
             catch (error) {
+                // Emit error completion
+                this.auditLog('error', {
+                    tool: toolName,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    durationMs: Date.now() - start,
+                    sessionId: this.agentContext.sessionId,
+                });
                 results.push({
                     role: 'tool',
                     content: JSON.stringify({
@@ -877,6 +911,9 @@ Remember: You're conducting conversational interviews to help users plan their t
             const taskContext = await this.buildTaskContext();
             // Conduct interview
             const taskPlan = await this.conductTaskInterview(taskContext, userMessage);
+            if (this.agentContext.sessionId) {
+                void this.memory.remember(this.agentContext.sessionId, { ts: new Date().toISOString(), kind: 'note', data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length } });
+            }
             return {
                 success: true,
                 taskPlan,
@@ -1045,10 +1082,20 @@ Remember: You're conducting conversational interviews to help users plan their t
                 };
             }
             // Dry-run only
-            return { ok: true, data: { kind: 'preview', message: `Would ${tool.includes('update') ? 'update' : 'create'} calendar event (${provider})`, args } };
+            return {
+                ok: true,
+                data: {
+                    kind: 'preview',
+                    message: `Would ${tool.includes('update') ? 'update' : 'create'} calendar event (${provider})`,
+                    args,
+                },
+            };
         }
         if (tool === 'journal.add_entry') {
-            return { ok: true, data: { kind: 'preview', message: 'Would append journal entry (dry-run preview).', args } };
+            return {
+                ok: true,
+                data: { kind: 'preview', message: 'Would append journal entry (dry-run preview).', args },
+            };
         }
         if (tool === 'web.fetch') {
             const url = String(args['url'] ?? '');
@@ -1065,13 +1112,18 @@ Remember: You're conducting conversational interviews to help users plan their t
             }
         }
         // GitHub
-        if (tool === 'github.issue.create' || tool === 'github.comment.create' || tool === 'github.search_prs') {
+        if (tool === 'github.issue.create' ||
+            tool === 'github.comment.create' ||
+            tool === 'github.search_prs') {
             const token = this.resolveKeyRef(this.config.keys?.githubKeyRef) || process.env.GITHUB_TOKEN;
             if (!token) {
                 return {
                     ok: false,
                     error: 'needs_configuration',
-                    data: { missing: ['githubKeyRef or GITHUB_TOKEN'], instructions: 'Set env GITHUB_TOKEN or add keys.githubKeyRef in orion.config.json.' },
+                    data: {
+                        missing: ['githubKeyRef or GITHUB_TOKEN'],
+                        instructions: 'Set env GITHUB_TOKEN or add keys.githubKeyRef in orion.config.json.',
+                    },
                 };
             }
             // Dry-run only
@@ -1084,7 +1136,10 @@ Remember: You're conducting conversational interviews to help users plan their t
                 return {
                     ok: false,
                     error: 'needs_configuration',
-                    data: { missing: ['notionKeyRef or NOTION_TOKEN'], instructions: 'Set env NOTION_TOKEN or add keys.notionKeyRef in orion.config.json.' },
+                    data: {
+                        missing: ['notionKeyRef or NOTION_TOKEN'],
+                        instructions: 'Set env NOTION_TOKEN or add keys.notionKeyRef in orion.config.json.',
+                    },
                 };
             }
             return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Notion`, args } };
@@ -1096,7 +1151,10 @@ Remember: You're conducting conversational interviews to help users plan their t
                 return {
                     ok: false,
                     error: 'needs_configuration',
-                    data: { missing: ['linearKeyRef or LINEAR_TOKEN'], instructions: 'Set env LINEAR_TOKEN or add keys.linearKeyRef in orion.config.json.' },
+                    data: {
+                        missing: ['linearKeyRef or LINEAR_TOKEN'],
+                        instructions: 'Set env LINEAR_TOKEN or add keys.linearKeyRef in orion.config.json.',
+                    },
                 };
             }
             return { ok: true, data: { kind: 'preview', message: `Would call ${tool} on Linear`, args } };
@@ -1129,6 +1187,62 @@ Remember: You're conducting conversational interviews to help users plan their t
             return this.approvalHandler(action);
         }
         return false;
+    }
+    /**
+     * Sprint 4: Reflection guard before writes
+     * - Validate args against tool schema when available
+     * - Enforce Phase 1A read-only policy for disallowed writes
+     */
+    async reflectBeforeWrite(action) {
+        // Enforce read-only in Phase 1A when config enforces phase
+        const isWrite = action.tool.includes('create') || action.tool.includes('update') || action.tool.includes('delete');
+        if (this.config.mvp.phase === '1A' && isWrite) {
+            return { ok: false, reason: 'Phase 1A: write operations blocked (dry-run previews only)' };
+        }
+        // Schema validation if we have a registered tool schema
+        const def = this.toolRegistry.getTool(action.tool);
+        if (def && def.schema) {
+            const reason = this.validateArgsAgainstSchema(action.args, def.schema);
+            if (reason) {
+                return { ok: false, reason: `schema_validation_failed: ${reason}` };
+            }
+        }
+        return { ok: true };
+    }
+    validateArgsAgainstSchema(args, schema) {
+        try {
+            if (schema?.type !== 'object')
+                return null;
+            if (Array.isArray(schema.required)) {
+                for (const key of schema.required) {
+                    if (!(key in args))
+                        return `missing required: ${key}`;
+                }
+            }
+            if (schema?.properties) {
+                for (const [key, def] of Object.entries(schema.properties)) {
+                    if (!(key in args))
+                        continue;
+                    const val = args[key];
+                    if (def.type === 'number' && typeof val !== 'number')
+                        return `invalid type for ${key}`;
+                    if (def.type === 'string' && typeof val !== 'string')
+                        return `invalid type for ${key}`;
+                    if (def.type === 'array' && !Array.isArray(val))
+                        return `invalid type for ${key}`;
+                    if (def.minimum !== undefined && typeof val === 'number' && val < def.minimum)
+                        return `${key} below minimum`;
+                }
+            }
+            return null;
+        }
+        catch {
+            return 'schema_check_error';
+        }
+    }
+    // Expose memory for debug commands
+    getRecentMemory(sessionId, limit = 20) {
+        return this.memory.getRecent(sessionId, limit);
     }
     /**
      * Tool handler: List directory
@@ -1382,6 +1496,11 @@ Type your request and I'll help you understand and plan your tasks using advance
         catch {
             // ignore audit file errors
         }
+        // Notify host listener (web SSE bridge)
+        try {
+            this.auditListener?.(action, args);
+        }
+        catch { }
     }
     /**
      * Generate simple hash for audit chain

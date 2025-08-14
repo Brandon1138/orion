@@ -13,6 +13,7 @@ import { TaskParser } from '@orion/task-parser';
 import { PlannerLLM } from '@orion/planner-llm';
 import { MCPClient } from '@orion/mcp-client';
 import { ToolRegistry } from './tools.js';
+import MemoryStore, { type MemoryItem } from './memory.js';
 import { IntentRouter, type IntentRoute } from './intent.js';
 import { ActionEngine, type Action, type ApprovalHandler } from './action-engine.js';
 import { CommandRouter } from '@orion/command-router';
@@ -84,6 +85,8 @@ export class OrionCore {
 	private openai: OpenAI;
 	private sessions = new Map<string, SessionContext>();
 	private approvalHandler?: ApprovalHandler;
+	private memory: MemoryStore;
+	private auditListener?: (event: string, payload: Record<string, unknown>) => void;
 
 	// OpenAI Agents SDK Integration (Chunk 3.2)
 	private orionAgent: { name: string; instructions: string; model: string; orchestrator: any };
@@ -130,10 +133,15 @@ export class OrionCore {
 			allowlist: config.web?.allowlist ?? ['https://example.com'],
 		});
 		this.intentRouter = new IntentRouter();
+		this.memory = new MemoryStore({ ttlSeconds: 3600, maxItems: 200, snapshotPath: './logs/memory' });
 		this.actionEngine = new ActionEngine(
 			async (tool, args) => this.executeTool(tool, args),
 			async action => this.requestApproval(action),
-			(event, payload) => this.auditLog(event, payload)
+			(event, payload) => this.auditLog(event, payload),
+			{
+				guard: async (action) => this.reflectBeforeWrite(action),
+				retry: { maxAttempts: 3, baseDelayMs: 300, jitterMs: 200 },
+			}
 		);
 
 		// Initialize OpenAI client for conversation management
@@ -144,6 +152,13 @@ export class OrionCore {
 		// Initialize OpenAI Agents SDK components (Chunk 3.2)
 		this.orionAgent = createOrionAgent(config);
 		this.agentContext = createOrionContext(config);
+	}
+
+	/**
+	 * Allow host (web/CLI) to subscribe to audit events
+	 */
+	onAudit(listener: (event: string, payload: Record<string, unknown>) => void): void {
+		this.auditListener = listener;
 	}
 
 	/**
@@ -207,6 +222,7 @@ export class OrionCore {
 		};
 
 		this.sessions.set(sessionId, session);
+		void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'event', data: { type: 'session_start', userId } });
 		this.auditLog('session_start', { sessionId, userId });
 
 		return sessionId;
@@ -552,6 +568,7 @@ export class OrionCore {
 				content: userMessage,
 				timestamp: new Date(),
 			});
+			void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'user', content: userMessage } });
 
 			// Build conversation history for OpenAI
 			const messages = this.buildConversationHistory(session);
@@ -597,6 +614,7 @@ export class OrionCore {
 					content: finalMessage,
 					timestamp: new Date(),
 				});
+				void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content: finalMessage } });
 
 				this.auditLog('message_processed', {
 					sessionId,
@@ -620,6 +638,7 @@ export class OrionCore {
 					content,
 					timestamp: new Date(),
 				});
+				void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content } });
 
 				this.auditLog('message_processed', {
 					sessionId,
@@ -985,11 +1004,15 @@ Remember: You're conducting conversational interviews to help users plan their t
 		const results: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = [];
 
 		for (const toolCall of toolCalls) {
+			const toolName = toolCall.function.name;
+			const start = Date.now();
+			// Emit start event (no args to avoid leaking sensitive values)
+			this.auditLog('tool_called', { tool: toolName, sessionId: this.agentContext.sessionId });
 			try {
 				let result: any;
 				const args = JSON.parse(toolCall.function.arguments);
 
-				switch (toolCall.function.name) {
+				switch (toolName) {
 					case 'conduct_task_interview':
 						result = await this.handleConductTaskInterview(args);
 						break;
@@ -1015,12 +1038,26 @@ Remember: You're conducting conversational interviews to help users plan their t
 						result = { success: false, error: `Unknown tool: ${toolCall.function.name}` };
 				}
 
+				// Emit completion event (assume ok=true on successful execution path)
+				this.auditLog('completed', {
+					tool: toolName,
+					durationMs: Date.now() - start,
+					sessionId: this.agentContext.sessionId,
+				});
+
 				results.push({
 					role: 'tool',
 					content: JSON.stringify(result),
 					tool_call_id: toolCall.id,
 				});
 			} catch (error) {
+				// Emit error completion
+				this.auditLog('error', {
+					tool: toolName,
+					error: error instanceof Error ? error.message : 'Unknown error',
+					durationMs: Date.now() - start,
+					sessionId: this.agentContext.sessionId,
+				});
 				results.push({
 					role: 'tool',
 					content: JSON.stringify({
@@ -1045,8 +1082,11 @@ Remember: You're conducting conversational interviews to help users plan their t
 			// Build task context
 			const taskContext = await this.buildTaskContext();
 
-			// Conduct interview
+				// Conduct interview
 			const taskPlan = await this.conductTaskInterview(taskContext, userMessage);
+				if (this.agentContext.sessionId) {
+					void this.memory.remember(this.agentContext.sessionId, { ts: new Date().toISOString(), kind: 'note', data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length } });
+				}
 
 			return {
 				success: true,
@@ -1357,6 +1397,60 @@ Remember: You're conducting conversational interviews to help users plan their t
 	}
 
 	/**
+	 * Sprint 4: Reflection guard before writes
+	 * - Validate args against tool schema when available
+	 * - Enforce Phase 1A read-only policy for disallowed writes
+	 */
+	private async reflectBeforeWrite(action: { tool: string; args: Record<string, unknown>; risk?: 'low' | 'medium' | 'high' }): Promise<{ ok: true } | { ok: false; reason: string }> {
+		// Enforce read-only in Phase 1A when config enforces phase
+		const isWrite = action.tool.includes('create') || action.tool.includes('update') || action.tool.includes('delete');
+		if (this.config.mvp.phase === '1A' && isWrite) {
+			return { ok: false, reason: 'Phase 1A: write operations blocked (dry-run previews only)' };
+		}
+
+		// Schema validation if we have a registered tool schema
+		const def = this.toolRegistry.getTool(action.tool);
+		if (def && def.schema) {
+			const reason = this.validateArgsAgainstSchema(action.args, def.schema);
+			if (reason) {
+				return { ok: false, reason: `schema_validation_failed: ${reason}` };
+			}
+		}
+
+		return { ok: true };
+	}
+
+	private validateArgsAgainstSchema(args: Record<string, unknown>, schema: any): string | null {
+		try {
+			if (schema?.type !== 'object') return null;
+			if (Array.isArray(schema.required)) {
+				for (const key of schema.required as string[]) {
+					if (!(key in args)) return `missing required: ${key}`;
+				}
+			}
+			if (schema?.properties) {
+				for (const [key, def] of Object.entries<any>(schema.properties)) {
+					if (!(key in args)) continue;
+					const val = (args as any)[key];
+					if (def.type === 'number' && typeof val !== 'number') return `invalid type for ${key}`;
+					if (def.type === 'string' && typeof val !== 'string') return `invalid type for ${key}`;
+					if (def.type === 'array' && !Array.isArray(val)) return `invalid type for ${key}`;
+					if (def.minimum !== undefined && typeof val === 'number' && val < def.minimum)
+						return `${key} below minimum`;
+				}
+			}
+			return null;
+		} catch {
+			return 'schema_check_error';
+		}
+	}
+
+	// Expose memory for debug commands
+	getRecentMemory(sessionId: string, limit = 20): MemoryItem[] {
+		return this.memory.getRecent(sessionId, limit);
+	}
+
+	/**
 	 * Tool handler: List directory
 	 */
 	private async handleListDirectory(params: any) {
@@ -1646,6 +1740,11 @@ Type your request and I'll help you understand and plan your tasks using advance
 		} catch {
 			// ignore audit file errors
 		}
+
+		// Notify host listener (web SSE bridge)
+		try {
+			this.auditListener?.(action, args);
+		} catch {}
 	}
 
 	/**

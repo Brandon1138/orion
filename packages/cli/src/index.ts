@@ -64,12 +64,18 @@ export class OrionCLI {
 			.description('Start interactive chat session')
 			.option('--dry-run', 'Run chat without calling external APIs')
 			.option('--approve-low', 'Auto-approve low risk actions in preview/execute mode')
+			.option('--no-prompt', 'Do not prompt for action selection in dry-run mode')
 			.option(
 				'-m, --message <message>',
 				'Run a single-turn chat with the provided message and exit'
 			)
 			.action(
-				async (options: { 'dry-run'?: boolean; 'approve-low'?: boolean; message?: string }) => {
+				async (options: {
+					'dry-run'?: boolean;
+					'approve-low'?: boolean;
+					'no-prompt'?: boolean;
+					message?: string;
+				}) => {
 					await this.initializeOrion();
 					// Provide an approval handler so ActionEngine can request approvals
 					(this.orion as any).setApprovalHandler(
@@ -159,6 +165,7 @@ Displays your Google Tasks in various formats for review before planning.`
 				new Date().toISOString().split('T')[0]
 			)
 			.option('--user-message <message>', 'Initial user message for planning context')
+			.option('--no-prompt', 'Do not prompt for executing proposed actions')
 			.addHelpText(
 				'after',
 				`
@@ -169,7 +176,7 @@ Examples:
 
 Generates a structured TaskPlan with priority analysis and calendar suggestions.`
 			)
-			.action(async (options: { date: string; 'user-message'?: string }) => {
+			.action(async (options: { date: string; 'user-message'?: string; 'no-prompt'?: boolean }) => {
 				await this.initializeOrion();
 				await this.handleTaskPlanCommand(options);
 			});
@@ -191,8 +198,16 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			.option('--conversation', 'Show conversation history')
 			.option('--session', 'Show current session state')
 			.option('--task-analysis', 'Show last task analysis details')
+			.option('--memory', 'Show recent session memory items')
+			.option('--actions', 'Preview last inferred actions (if available)')
 			.action(
-				(options: { conversation?: boolean; session?: boolean; 'task-analysis'?: boolean }) => {
+				(options: {
+					conversation?: boolean;
+					session?: boolean;
+					'task-analysis'?: boolean;
+					memory?: boolean;
+					actions?: boolean;
+				}) => {
 					this.handleDebugCommand(options);
 				}
 			);
@@ -240,7 +255,11 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		}
 	}
 
-	private async previewAndMaybeExecute(message: string, autoApproveLow: boolean): Promise<void> {
+	private async previewAndMaybeExecute(
+		message: string,
+		autoApproveLow: boolean,
+		noPrompt = false
+	): Promise<void> {
 		if (!this.orion) return;
 		console.log(chalk.blue('Intent and action preview (dry-run)'));
 		const preview = await (this.orion as any).previewActions(message);
@@ -256,6 +275,11 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 				`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`
 			);
 		});
+
+		if (noPrompt) {
+			// Non-interactive mode: only preview, do not prompt or execute
+			return;
+		}
 
 		// Sprint 2: Optional selection before execution
 		const { runSelection } = await inquirer.prompt<{ runSelection: string }>([
@@ -394,18 +418,28 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 	private async handleChatCommand(options?: {
 		'dry-run'?: boolean;
 		'approve-low'?: boolean;
+		'no-prompt'?: boolean;
 		message?: string;
+		// Commander camelCased aliases
+		dryRun?: boolean;
+		approveLow?: boolean;
+		noPrompt?: boolean;
 	}): Promise<void> {
 		if (!this.orion || !this.sessionId) {
 			console.error(chalk.red('❌ Orion not initialized'));
 			return;
 		}
 
+		// Normalize commander option names (kebab-case and camelCase)
+		const dryRun = Boolean(options?.['dry-run'] ?? (options as any)?.dryRun);
+		const approveLow = Boolean(options?.['approve-low'] ?? (options as any)?.approveLow);
+		const noPrompt = Boolean(options?.['no-prompt'] ?? (options as any)?.noPrompt);
+
 		if (options?.message) {
 			// One-shot, non-interactive mode
 			try {
-				if (options['dry-run']) {
-					await this.previewAndMaybeExecute(options.message, options['approve-low'] === true);
+				if (dryRun) {
+					await this.previewAndMaybeExecute(options.message, approveLow, noPrompt);
 					return;
 				}
 
@@ -443,8 +477,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 
 			if (typeof message === 'string') {
 				try {
-					if (options?.['dry-run']) {
-						await this.previewAndMaybeExecute(message, options['approve-low'] === true);
+					if (dryRun) {
+						await this.previewAndMaybeExecute(message, approveLow, noPrompt);
 						console.log('');
 					} else {
 						const response = await this.orion.processMessage(this.sessionId, message);
@@ -601,6 +635,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 		conversation?: boolean;
 		session?: boolean;
 		'task-analysis'?: boolean;
+		memory?: boolean;
+		actions?: boolean;
 	}): void {
 		if (!this.orion || !this.sessionId) {
 			console.error(chalk.red('❌ Orion not initialized'));
@@ -656,13 +692,53 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 			}
 		}
 
+		if (options.memory) {
+			console.log(chalk.blue('Recent Memory'));
+			console.log(chalk.gray('='.repeat(50)));
+			try {
+				const items = (this.orion as any).getRecentMemory(this.sessionId!, 20) as Array<{
+					ts: string;
+					kind: string;
+					data: Record<string, unknown>;
+				}>;
+				if (!items || items.length === 0) {
+					console.log(chalk.yellow('No memory items'));
+				} else {
+					items.forEach((it, idx) => {
+						console.log(`${idx + 1}. [${chalk.gray(it.ts)}] ${chalk.cyan(it.kind)}`);
+						console.log(
+							`   ${JSON.stringify(it.data).slice(0, 200)}${JSON.stringify(it.data).length > 200 ? '...' : ''}`
+						);
+					});
+				}
+			} catch (err) {
+				console.log(chalk.red('Failed to fetch memory items'), err);
+			}
+		}
+
+		if (options.actions) {
+			console.log(chalk.blue('Last Action Preview'));
+			console.log(chalk.gray('='.repeat(50)));
+			console.log(
+				chalk.gray('Use "orion chat --dry-run -m \"<message>\"" to generate an action preview.')
+			);
+		}
+
 		// If no specific options, show all
-		if (!options.conversation && !options.session && !options['task-analysis']) {
+		if (
+			!options.conversation &&
+			!options.session &&
+			!options['task-analysis'] &&
+			!options.memory &&
+			!options.actions
+		) {
 			console.log(chalk.blue('🐛 Debug Information'));
 			console.log(chalk.gray('Available debug options:'));
 			console.log('  --conversation   Show conversation history');
 			console.log('  --session        Show session state');
 			console.log('  --task-analysis  Show task analysis details');
+			console.log('  --memory        Show recent memory items');
+			console.log('  --actions       Preview instructions');
 		}
 	}
 
@@ -830,6 +906,7 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 	private async handleTaskPlanCommand(options: {
 		date: string;
 		'user-message'?: string;
+		'no-prompt'?: boolean;
 	}): Promise<void> {
 		if (!this.orion || !this.sessionId) {
 			console.error(chalk.red('❌ Orion not initialized'));
@@ -871,6 +948,11 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 								`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`
 							);
 						});
+
+						if (options['no-prompt']) {
+							// Non-interactive preview only
+							return;
+						}
 
 						const { runSelection } = await inquirer.prompt<{ runSelection: string }>([
 							{
@@ -921,8 +1003,72 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
 							}
 						}
 					} else {
-						// Fallback to plain text display
-						console.log(response);
+						// Try fallback: use session TaskPlan captured by OrionCore
+						const session = this.orion.getSession(this.sessionId!);
+						if (session?.currentTaskPlan) {
+							this.displayTaskPlan(session.currentTaskPlan);
+							const actions = (this.orion as any).convertTaskPlanToActions(session.currentTaskPlan);
+							if (actions && actions.length > 0) {
+								console.log('');
+								console.log(chalk.blue('Proposed Actions from TaskPlan:'));
+								actions.forEach((a: any, i: number) => {
+									const risk = a.risk || 'medium';
+									console.log(
+										`  ${i + 1}. ${chalk.cyan(a.tool)} ${JSON.stringify(a.args)} ${chalk.gray(`[${risk}]`)}`
+									);
+								});
+								if (options['no-prompt']) {
+									return;
+								}
+								const { runSelection } = await inquirer.prompt<{ runSelection: string }>([
+									{
+										type: 'list',
+										name: 'runSelection',
+										message: 'Execute which actions?',
+										choices: [
+											{ name: 'None (preview only)', value: 'none' },
+											{ name: 'All', value: 'all' },
+											{ name: 'Select subset', value: 'subset' },
+										],
+										default: 'none',
+									},
+								]);
+								let actionsToRun = actions as any[];
+								if (runSelection === 'subset') {
+									const { selected } = await inquirer.prompt<{ selected: number[] }>([
+										{
+											type: 'checkbox',
+											name: 'selected',
+											message: 'Select actions to execute',
+											choices: (actions as any[]).map((a, i) => ({
+												name: `${i + 1}. ${a.tool} ${JSON.stringify(a.args)}`,
+												value: i,
+											})),
+										},
+									]);
+									actionsToRun = selected.map(i => actions[i]);
+								}
+								if (runSelection !== 'none' && actionsToRun.length > 0) {
+									console.log(chalk.dim('Executing selected actions...'));
+									const results = await (this.orion as any).runActions(actionsToRun);
+									console.log(chalk.blue('Results:'));
+									results.forEach((r: any, i: number) => {
+										if (r.ok) {
+											console.log(
+												`  ${i + 1}. ${chalk.green('OK')} ${chalk.cyan(r.tool)} (${r.durationMs}ms)`
+											);
+										} else {
+											console.log(
+												`  ${i + 1}. ${chalk.red('ERR')} ${chalk.cyan(r.tool)}: ${r.error}`
+											);
+										}
+									});
+								}
+							}
+						} else {
+							// Fallback to plain text display
+							console.log(response);
+						}
 					}
 				} else {
 					// Fallback to plain text display

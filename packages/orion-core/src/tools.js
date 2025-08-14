@@ -106,7 +106,10 @@ export class ToolRegistry {
             schema: {
                 type: 'object',
                 properties: {
-                    query: { type: 'string', description: 'GitHub search query, e.g., repo:owner/name is:pr is:open' },
+                    query: {
+                        type: 'string',
+                        description: 'GitHub search query, e.g., repo:owner/name is:pr is:open',
+                    },
                     per_page: { type: 'number', minimum: 1, maximum: 100, default: 10 },
                     page: { type: 'number', minimum: 1, default: 1 },
                 },

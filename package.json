@@ -9,7 +9,10 @@
 	},
 	"scripts": {
 		"dev": "node scripts/start-dev.js",
+		"dev:web": "npm run dev -w @orion/web",
 		"build": "npm run build --workspaces",
+		"build:web": "npm run build -w @orion/web",
+		"start:web": "npm run start -w @orion/web",
 		"test": "vitest",
 		"test:e2e": "npm run test:e2e --workspaces",
 		"lint": "eslint . --max-warnings 0",
@@ -39,6 +42,7 @@
 		"@types/eslint__js": "^8.42.3",
 		"@types/node": "^20.10.0",
 		"@types/pg": "^8.11.0",
+		"cross-env": "^7.0.3",
 		"eslint": "^9.32.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-prettier": "^5.5.3",
