@@ -27,3 +27,24 @@ body {
 		'Apple Color Emoji',
 		'Segoe UI Emoji';
 }
+
+/* Smooth scroll and nicer scrollbars */
+html {
+	scroll-behavior: smooth;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+	}
+}
+
+.shadow-soft {
+	box-shadow:
+		0 1px 2px 0 rgb(0 0 0 / 0.05),
+		0 1px 3px 0 rgb(0 0 0 / 0.06);
+}
+
+.shadow-floating {
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
