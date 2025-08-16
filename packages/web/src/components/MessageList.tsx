@@ -15,9 +15,16 @@ export function MessageList({ messages }: MessageListProps) {
 				style={{ height: '100%' }}
 				data={messages}
 				followOutput="smooth"
-				itemContent={(_, m) => (
-					<div className="mb-3">
-						<MessageBubble role={m.role} content={m.content} timestamp={m.timestamp} />
+				itemContent={(index, message) => (
+					<div 
+						className="mb-6 animate-slide-up" 
+						style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
+					>
+						<MessageBubble 
+							role={message.role} 
+							content={message.content} 
+							timestamp={message.timestamp} 
+						/>
 					</div>
 				)}
 			/>
