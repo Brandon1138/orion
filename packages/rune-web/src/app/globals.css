@@ -4,25 +4,177 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
+    /* Nordic-inspired light theme (for future use) */
+    --background: 210 30% 98%;
+    --foreground: 220 15% 15%;
+    --border: 215 20% 88%;
+    --card: 210 30% 98%;
+    --card-foreground: 220 15% 15%;
+    --primary: 217 100% 65%;
+    --primary-foreground: 220 15% 5%;
+    --secondary: 215 20% 92%;
+    --secondary-foreground: 220 15% 15%;
+    --popover: 210 30% 98%;
+    --popover-foreground: 220 15% 15%;
+    --muted: 215 20% 92%;
+    --muted-foreground: 220 8% 50%;
+    --accent: 215 20% 92%;
+    --accent-foreground: 220 15% 15%;
+    --destructive: 0 75% 65%;
+    --destructive-foreground: 220 15% 5%;
+    --input: 215 20% 88%;
+    --ring: 217 100% 65%;
+    --chart-1: 217 100% 65%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 47 96% 89%;
+    --chart-4: 280 100% 70%;
+    --chart-5: 340 75% 55%;
+    --radius: 0.75rem;
+    
+    /* Nordic magic color palette */
+    --rune-frost: 200 100% 85%;
+    --rune-ice: 195 70% 75%;
+    --rune-aurora: 142 76% 36%;
+    --rune-ember: 25 85% 65%;
+    --rune-void: 260 50% 30%;
+    --rune-stone: 220 8% 50%;
+  }
+  
+  .dark {
+    /* Nordic-inspired dark theme - deep slate with mystical accents */
+    --background: 222 47% 6%;
     --foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --card: 222.2 84% 4.9%;
+    --card: 217 33% 10%;
     --card-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
+    --popover: 217 33% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 70%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 15%;
     --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 15%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 75% 65%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 15%;
+    --ring: 217 91% 70%;
+    --chart-1: 217 91% 70%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 47 96% 89%;
+    --chart-4: 280 100% 70%;
+    --chart-5: 340 75% 55%;
+    
+    /* Enhanced Nordic magic colors for dark theme */
+    --rune-frost: 200 80% 65%;
+    --rune-ice: 195 50% 55%;
+    --rune-aurora: 142 60% 45%;
+    --rune-ember: 25 75% 55%;
+    --rune-void: 260 70% 50%;
+    --rune-stone: 215 15% 45%;
   }
 }
 
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    @apply border-border;
   }
+  
   body {
-    @apply bg-slate-900 text-slate-100;
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Nordic-inspired custom properties */
+  .rune-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+  
+  .rune-frost-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--rune-frost) / 0.3);
+  }
+  
+  .rune-aurora-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--rune-aurora) / 0.3);
+  }
+  
+  .rune-ember-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--rune-ember) / 0.3);
+  }
+}
+
+@layer utilities {
+  .text-rune-frost {
+    color: hsl(var(--rune-frost));
+  }
+  
+  .text-rune-ice {
+    color: hsl(var(--rune-ice));
+  }
+  
+  .text-rune-aurora {
+    color: hsl(var(--rune-aurora));
+  }
+  
+  .text-rune-ember {
+    color: hsl(var(--rune-ember));
+  }
+  
+  .text-rune-void {
+    color: hsl(var(--rune-void));
+  }
+  
+  .text-rune-stone {
+    color: hsl(var(--rune-stone));
+  }
+  
+  .bg-rune-frost {
+    background-color: hsl(var(--rune-frost));
+  }
+  
+  .bg-rune-ice {
+    background-color: hsl(var(--rune-ice));
+  }
+  
+  .bg-rune-aurora {
+    background-color: hsl(var(--rune-aurora));
+  }
+  
+  .bg-rune-ember {
+    background-color: hsl(var(--rune-ember));
+  }
+  
+  .bg-rune-void {
+    background-color: hsl(var(--rune-void));
+  }
+  
+  .bg-rune-stone {
+    background-color: hsl(var(--rune-stone));
+  }
+  
+  .border-rune-frost {
+    border-color: hsl(var(--rune-frost));
+  }
+  
+  .border-rune-ice {
+    border-color: hsl(var(--rune-ice));
+  }
+  
+  .border-rune-aurora {
+    border-color: hsl(var(--rune-aurora));
+  }
+  
+  .border-rune-ember {
+    border-color: hsl(var(--rune-ember));
+  }
+  
+  .border-rune-void {
+    border-color: hsl(var(--rune-void));
+  }
+  
+  .border-rune-stone {
+    border-color: hsl(var(--rune-stone));
   }
 }
