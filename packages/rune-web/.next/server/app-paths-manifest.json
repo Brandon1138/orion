@@ -1,0 +1,8 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/cast/page": "app/cast/page.js",
+  "/marketplace/page": "app/marketplace/page.js",
+  "/page": "app/page.js",
+  "/create/page": "app/create/page.js",
+  "/runestone/page": "app/runestone/page.js"
+}
