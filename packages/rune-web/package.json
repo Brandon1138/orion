@@ -1,0 +1,19 @@
+{
+  "name": "@rune/rune-web",
+  "version": "1.0.0",
+  "description": "Web interface for Rune AI orchestration platform",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "keywords": ["web", "ui", "interface", "rune"],
+  "author": "Brandon Aron",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

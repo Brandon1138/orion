@@ -1,0 +1,20 @@
+{
+  "name": "@rune/runestone",
+  "version": "1.0.0",
+  "description": "Rune workflow library and management system",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest"
+  },
+  "keywords": ["library", "workflows", "management", "rune"],
+  "author": "Brandon Aron",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  }
+}

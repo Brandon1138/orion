@@ -58,7 +58,12 @@ const tabs = [
 	},
 ];
 
-export function InspectorTabs() {
+type InspectorTabsProps = {
+	onToggleCollapse?: () => void;
+	isCollapsed?: boolean;
+};
+
+export function InspectorTabs({ onToggleCollapse, isCollapsed = false }: InspectorTabsProps) {
 	const [tab, setTab] = useState<TabKey>('tools');
 
 	return (
@@ -66,7 +71,32 @@ export function InspectorTabs() {
 			{/* Header with glass effect */}
 			<div className="glass-panel border-b border-border-elevated">
 				<div className="p-4">
-					<h2 className="text-sm font-semibold text-foreground mb-3">Inspector</h2>
+					<div className="flex items-center justify-between mb-3">
+						<h2 className="text-sm font-semibold text-foreground">Inspector</h2>
+						<button
+							type="button"
+							aria-label={isCollapsed ? 'Expand inspector panel' : 'Collapse inspector panel'}
+							title={
+								isCollapsed ? 'Expand inspector (Ctrl/Cmd+B)' : 'Collapse inspector (Ctrl/Cmd+B)'
+							}
+							onClick={onToggleCollapse}
+							className="interactive-subtle rounded-lg p-2 hover:bg-surface focus-ring-subtle"
+						>
+							<svg
+								className={`h-4 w-4 text-foreground-secondary transition-transform duration-300 ease-out ${isCollapsed ? 'rotate-180' : ''}`}
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M9 5l7 7-7 7"
+								/>
+							</svg>
+						</button>
+					</div>
 
 					{/* Modern tab navigation */}
 					<div className="flex bg-surface rounded-xl p-1 gap-3">

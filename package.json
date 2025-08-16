@@ -1,7 +1,7 @@
 {
-	"name": "orion",
+	"name": "rune",
 	"version": "1.0.0",
-	"description": "Daily planning copilot + local file/OS agent",
+	"description": "AI orchestration platform for composable multi-AI workflows",
 	"type": "module",
 	"engines": {
 		"node": ">=20.10.0 <22.0.0",
@@ -9,10 +9,10 @@
 	},
 	"scripts": {
 		"dev": "node scripts/start-dev.js",
-		"dev:web": "npm run dev -w @orion/web",
+		"dev:web": "npm run dev -w @rune/rune-web",
 		"build": "npm run build --workspaces",
-		"build:web": "npm run build -w @orion/web",
-		"start:web": "npm run start -w @orion/web",
+		"build:web": "npm run build -w @rune/rune-web",
+		"start:web": "npm run start -w @rune/rune-web",
 		"test": "vitest",
 		"test:e2e": "npm run test:e2e --workspaces",
 		"lint": "eslint . --max-warnings 0",
@@ -59,15 +59,16 @@
 	},
 	"keywords": [
 		"ai",
-		"calendar",
-		"planning",
-		"agent",
-		"productivity"
+		"orchestration",
+		"workflow",
+		"automation",
+		"marketplace",
+		"multi-ai"
 	],
 	"author": "Brandon Aron",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/your-org/orion.git"
+		"url": "git+https://github.com/Brandon1138/orion.git"
 	}
 }

@@ -1,183 +1,449 @@
-## Orion Agent — Agent‑First SPEC (Consolidated)
+# AI Operating System - Project Specification v1.0
 
-This document replaces prior planner‑first specs. Orion is an agentic assistant that completes digital tasks end‑to‑end. Planning is a capability the agent uses when helpful, not the product itself.
+## Executive Summary
 
-### Vision and principles
+A provider-agnostic AI orchestration platform that enables users to compose workflows ("daemons") combining multiple AI models, tools, and deterministic scripts into reusable, shareable, and monetizable automation sequences.
 
-- Help users complete work through conversation: understand intent, choose tools, act safely, and report results.
-- Agent‑first loop: Perceive → Understand → Plan (when helpful) → Act → Reflect → Learn
-- Safety by design: scopes, approvals, redaction, audit
-- Tooling via MCP and native SDKs with uniform schemas and policies
-- Cost control: `gpt-5-nano` by default; escalate selectively
+## Core Vision
 
-## Architecture overview
+### Problem Statement
 
-### Runtime flow
+- AI providers are siloed, forcing users to choose ecosystems rather than best-in-class tools
+- No unified interface for orchestrating multiple AI agents and traditional automation
+- Lack of reusable, shareable workflows that combine AI with deterministic operations
+- Security and privacy concerns with giving AI agents direct system access
 
-1. Perceive: normalize input, session state, environment, recent history
-2. Understand: classify intent + required capabilities, assess risk
-3. Plan (optional): build a small ActionGraph when multi‑step or ambiguous
-4. Act: execute actions via MCP/SDK tools with approvals; stream progress
-5. Reflect: summarize results, produce artifacts, propose next steps
-6. Learn: update short‑term memory; optionally write long‑term notes
+### Solution
 
-### Core components (to add/extend in `@orion/core`)
+A platform that acts as an operating system for AI agents, providing:
 
-- ToolRegistry: discover MCP servers + register native SDK tools; expose JSON schemas and `policy_tag`s
-- IntentRouter: rule + LLM classifier for intent, capability selection, and when to invoke planning
-- ActionEngine: execute ActionGraph with retries, approvals, streaming logs, and reflection checks
-- MemoryStore: short‑term session buffer; optional long‑term KV/vector later
-- PolicyEngine: allow/deny by tool scope, argument validators, rate limits, risk tiers
-- Telemetry/Audit: structured events for intent, plan, tool calls, approvals, and costs
+- Unified orchestration across all major AI providers
+- Composable "daemons" mixing AI and traditional scripting
+- Secure cloud-based execution environment
+- Marketplace for sharing and monetizing workflows
 
-### Existing packages leveraged
+## System Architecture
 
-- `@orion/planner-llm`: planning/scheduling skill with schema‑validated outputs and model‑aware temperature handling
-- `@orion/task-parser`: Google Tasks utilities; expand to other sources later
-- CLI: primary UX entry point; unify around `orion chat` with previews and approvals
+### Core Components
 
-## Data model
+#### 1. Orchestration Engine
 
-- Task: id, title, status, due, context, evidence, actions, result, owner
-- Action: toolCall { name, args, expected_output, policy_tag }, result | error, timestamps, tokens, cost
-- ActionGraph: nodes = Action[], edges = dependencies (generated when complexity > 1 step)
+```
+Core Responsibilities:
+├── Provider Abstraction Layer
+│   ├── OpenAI (GPT-4, GPT-5, Codex)
+│   ├── Anthropic (Claude family, Claude Code)
+│   ├── Google (Gemini, Bard)
+│   ├── Open Source (Llama, Mistral)
+│   └── Specialized (Cursor CLI, Replit, etc.)
+├── State Management
+│   ├── Context passing between models
+│   ├── Session persistence
+│   └── Variable storage
+├── Execution Router
+│   ├── Cost optimization logic
+│   ├── Performance-based routing
+│   └── Capability matching
+└── Error Handling & Fallbacks
+```
 
-## Tools and MCP
+#### 2. Spellbook System
 
-- Discover MCP servers from config; hot‑register tools at startup
-- Wrap native SDKs (calendar/email/github/notion/linear/web) as uniform tools
-- Each tool advertises a JSON schema and `policy_tag` like `low:fs.read`, `med:web.fetch`, `high:email.send`
+**Daemon Structure:**
 
-## Safety and approvals
+```yaml
+daemon:
+  name: 'SaaS MVP Builder'
+  version: '1.2.0'
+  author: 'username'
+  price: '$4.99' # or "free"
 
-- PolicyEngine gates by scope and args; approvals required for medium/high risk
-- `--dry-run` shows ActionGraph and requested approvals; `--approve-low` fast‑path
-- Reflection checks output post‑conditions before writes
-- Redaction middleware scrubs secrets from logs and responses
+  inputs:
+    - name: 'app_idea'
+      type: 'string'
+      description: 'Description of the SaaS application'
+    - name: 'tech_stack'
+      type: 'enum'
+      options: ['Next.js', 'Rails', 'Django']
 
-## Models and cost controls
+  stages:
+    - name: 'Planning'
+      agent: 'gpt-5'
+      prompt_template: '...'
+      output: 'architecture_doc'
 
-- Default model: `gpt-5-nano` for routing, light reasoning, and tool use (temperature omitted for this model)
-- Escalation policy: upgrade only for long‑form reasoning or complex drafting; log justification in audit
-- Track tokens/cost per action; warn on budget thresholds
+    - name: 'Database Design'
+      agent: 'claude-opus'
+      input: '${architecture_doc}'
+      prompt_template: '...'
+      output: 'schema'
 
-## CLI UX (Windows‑friendly)
+    - name: 'Setup Environment'
+      type: 'script'
+      runtime: 'node'
+      script: |
+        npm create next-app@latest ${app_name}
+        cd ${app_name}
+        npm install ${packages}
 
-- Primary: `orion chat [--dry-run] [--approve-low] [--verbose]`
-- Planner remains available: `orion plan`, `orion task-plan`
-- Status and debug: `orion status`, `orion debug --actions|--session|--conversation`
+    - name: 'Implementation'
+      agent: 'claude-code'
+      input: '${schema}, ${architecture_doc}'
+      working_directory: '${app_name}'
 
-## Configuration (`orion.config.json`)
+    - name: 'Testing'
+      type: 'hybrid'
+      script: 'npm test'
+      agent: 'gpt-4'
+      agent_role: 'analyze_failures'
+```
 
-- agents: { plannerModel: 'gpt-5-nano', plannerTemperature?: number, fallbackModel, codexEnabled }
-- tools: MCP server list, allow/deny globs, command policy
-- policies: approval defaults, risk tiers, rate limits
-- audit: path, hashing, retention
-- memory: shortTerm caps; longTerm off by default
+#### 3. Execution Environment
 
-## Actionable roadmap
+**Cloud VM Architecture:**
 
-### Sprint 1 — Agent skeleton and tool discovery (1–2 weeks)
+```
+User Request → Load Balancer → Execution Pod
+                                ├── Sandboxed Container
+                                │   ├── File System (ephemeral)
+                                │   ├── Network (restricted)
+                                │   └── Resource Limits
+                                ├── Agent Proxy
+                                │   ├── API Key Management
+                                │   └── Rate Limiting
+                                └── Audit Logger
+```
 
-Deliverables
+**Security Layers:**
 
-- ToolRegistry with MCP discovery + local tool adapter
-- IntentRouter v1 (rule + LLM) using `gpt-5-nano`
-- ActionEngine v1: linear list execution, approvals, logs
-- CLI `--dry-run` preview and streaming outputs
+- Read-only access to user files (via secure upload)
+- No direct network access from scripts
+- Time and resource limits per execution
+- Encrypted state storage
+- Audit trail for all operations
 
-Steps
+### Data Model
 
-1. Create `ToolRegistry` and `ActionEngine` in `@orion/core`
-2. Load MCP servers from config; expose `fs.read`, `fs.list`, `fs.search`; add `web.fetch` native tool
-3. Implement approvals: `auto` for low, `ask` for med/high; write audit events
-4. Wire `orion chat` to IntentRouter → ActionEngine; show action preview before run
+#### User Account
 
-Acceptance
+```json
+{
+	"user_id": "uuid",
+	"subscription_tier": "pro|enterprise|free",
+	"api_keys_vault": "encrypted_blob",
+	"execution_credits": 1000,
+	"created_daemons": ["daemon_ids"],
+	"purchased_daemons": ["daemon_ids"],
+	"favorite_daemons": ["daemon_ids"]
+}
+```
 
-- “Summarize top 3 from my tasks” previews file/task reads and summary action, executes successfully, emits audit
+#### Daemon Registry
 
-### Sprint 2 — Planning as a capability (1–2 weeks)
+```json
+{
+	"daemon_id": "uuid",
+	"metadata": {
+		"name": "string",
+		"description": "string",
+		"category": "development|content|analysis|creative",
+		"tags": ["array"],
+		"version": "semver",
+		"author": "user_id",
+		"price": 0.0,
+		"license": "MIT|proprietary|CC"
+	},
+	"definition": "yaml_string",
+	"stats": {
+		"runs": 10000,
+		"rating": 4.8,
+		"revenue": 5000.0,
+		"forks": 23
+	},
+	"permissions": {
+		"public": true,
+		"organizations": ["org_ids"],
+		"users": ["user_ids"]
+	}
+}
+```
 
-Deliverables
+#### Execution Log
 
-- Integrate `@orion/planner-llm` when scheduling/multi‑step is detected
-- Micro‑plan mode for short action lists (no calendar)
-- CLI `--approve-low` approval fast‑path
+```json
+{
+	"execution_id": "uuid",
+	"daemon_id": "uuid",
+	"user_id": "uuid",
+	"started_at": "timestamp",
+	"completed_at": "timestamp",
+	"status": "success|failed|timeout",
+	"stages": [
+		{
+			"name": "string",
+			"status": "string",
+			"duration_ms": 1234,
+			"cost": {
+				"tokens": 1000,
+				"credits": 10,
+				"usd": 0.02
+			},
+			"output": "string|object"
+		}
+	],
+	"total_cost": {
+		"credits": 50,
+		"usd": 0.1
+	}
+}
+```
 
-Steps
+## Monetization Strategy
 
-1. Add IntentRouter rule to trigger PlannerLLM on scheduling language
-2. Convert TaskPlan → ActionGraph; allow partial execution after preview
-3. Add debug views for action graph and last tool calls
+### Revenue Streams
 
-Acceptance
+#### 1. Subscription Tiers
 
-- “Plan my week from Google Tasks” produces TaskPlan, previews calendar actions, and runs on approval
+**Free Tier:**
 
-### Sprint 3 — Connectors that unlock real work (2 weeks)
+- 100 execution credits/month
+- Access to free daemons
+- Create up to 3 private daemons
+- Community support
 
-Deliverables
+**Pro Tier ($29/month):**
 
-- Calendar read/write (Google/MS Graph) with scoped approvals
-- GitHub: create issue/comment; search PRs
-- Notion/Linear: create/update task
+- 2,000 execution credits/month
+- Access to all daemons
+- Unlimited private daemons
+- Priority execution
+- Version control & rollback
+- Email support
 
-Steps
+**Enterprise Tier (Custom pricing):**
 
-1. Wrap SDKs as tools with JSON schemas and validators
-2. Add test fixtures and end‑to‑end demos
-3. Expand audit with connector metadata and per‑action cost
+- Unlimited execution credits
+- Private daemon library
+- On-premise deployment option
+- Custom model integration
+- SLA guarantees
+- Dedicated support
 
-Acceptance
+#### 2. Marketplace Commission
 
-- “Create a bug ticket from this log and schedule 90 min tomorrow” drafts ticket, creates on approval, and adds event
+- 30% commission on daemon sales (similar to app stores)
+- Featured placement opportunities ($99/week)
+- Sponsored daemons in search results
 
-### Sprint 4 — Memory, reflection, and quality (1–2 weeks)
+#### 3. Execution Credits
 
-Deliverables
+- Pay-as-you-go: $10 per 1,000 credits
+- Bulk packages with discounts
+- Enterprise volume pricing
 
-- Short‑term memory store with pruning; optional long‑term KV
-- Reflection checks before writes; retries with backoff
-- Better status/debug surfaces
+#### 4. Additional Services
 
-Steps
+- Daemon certification program ($299)
+- Custom daemon development services
+- Training and consultation
+- White-label solutions for enterprises
 
-1. MemoryStore with TTL and size caps; persist session JSONL
-2. Reflection templates in ActionEngine; classify retriable errors
-3. `orion debug --session` shows memory and last graph
+### Marketplace Dynamics
 
-Acceptance
+**For Creators:**
 
-- Multi‑turn sessions avoid repeated questions; reflection blocks bad writes in tests
+- Set pricing (free, one-time, or subscription)
+- Analytics dashboard (usage, revenue, ratings)
+- A/B testing for daemon optimization
+- Revenue sharing for forked improvements
 
-## Testing and quality
+**For Consumers:**
 
-- Unit: ToolRegistry, IntentRouter, ActionEngine; planner schema validation
-- Integration: CLI flows with fixtures; mock MCP servers
-- Contract: tool schemas and policy tags; approval prompts
-- CI: build workspaces, run tests, forbid lint/type errors
+- Try before buy (limited runs)
+- Ratings and reviews
+- Request features/modifications
+- Bundle discounts
 
-## Security and privacy
+## Implementation Roadmap
 
-- Least privilege; explicit allowlists; session‑scoped approvals
-- Secrets in keychain; never printed
-- Audit JSONL with hash chaining; redact sensitive arguments
+### Phase 1: MVP (Months 1-3)
 
-## Developer quickstart (Windows)
+- [ ] Core orchestration engine (OpenAI + Anthropic only)
+- [ ] Basic daemon structure (YAML-based)
+- [ ] Local execution environment
+- [ ] Simple web interface
+- [ ] 5-10 example daemons
 
-1. Node 20.x, npm ≥ 10
-2. Set `OPENAI_API_KEY`
-3. Build: `npm run build --workspaces`
-4. Run: `node orion-cli.js`
-5. Try: `orion chat --dry-run` then ask: “Summarize my tasks and block 2×90min tomorrow”
+### Phase 2: Cloud Platform (Months 4-6)
 
-## Migration notes
+- [ ] Cloud execution environment
+- [ ] User authentication & accounts
+- [ ] Daemon sharing (public/private)
+- [ ] Basic marketplace (free daemons only)
+- [ ] Add Google & open-source models
 
-- Keep `plan`/`task-plan` commands; agent can auto‑invoke planning
-- Default model updated to `gpt-5-nano`; temperature omitted for this model
+### Phase 3: Monetization (Months 7-9)
 
-## Success metrics
+- [ ] Payment processing
+- [ ] Paid daemons in marketplace
+- [ ] Subscription tiers
+- [ ] Credit system
+- [ ] Creator analytics dashboard
 
-- Task completion rate without manual steps; approval latency; cost per completed task
-- Escalation ratio to larger models; user satisfaction and re‑engagement
+### Phase 4: Enterprise & Scale (Months 10-12)
+
+- [ ] Enterprise features (SSO, audit logs)
+- [ ] On-premise deployment option
+- [ ] Advanced security features
+- [ ] API for third-party integrations
+- [ ] Mobile app (execution only)
+
+### Phase 5: Ecosystem (Year 2)
+
+- [ ] Daemon versioning & dependencies
+- [ ] Visual daemon builder
+- [ ] Community forums & support
+- [ ] Certification program
+- [ ] Partner integrations
+
+## Technical Requirements
+
+### Backend
+
+- **Language:** Python (FastAPI) or Node.js (NestJS)
+- **Database:** PostgreSQL (metadata) + Redis (cache/queue)
+- **Queue:** Celery/Bull for async execution
+- **Storage:** S3-compatible for daemon definitions
+- **Container:** Docker/Kubernetes for execution pods
+
+### Frontend
+
+- **Framework:** Next.js 14+ (App Router)
+- **State:** Zustand or Redux Toolkit
+- **UI:** Tailwind CSS + shadcn/ui
+- **Editor:** Monaco Editor for daemon editing
+
+### Infrastructure
+
+- **Cloud:** AWS/GCP/Azure (multi-region)
+- **CDN:** CloudFlare for static assets
+- **Monitoring:** DataDog or Grafana
+- **Logging:** ELK stack or CloudWatch
+
+### Security
+
+- **Secrets:** HashiCorp Vault or AWS Secrets Manager
+- **Authentication:** Auth0 or Supabase Auth
+- **Encryption:** AES-256 for stored API keys
+- **Compliance:** SOC 2 Type II (eventual)
+
+## Success Metrics
+
+### User Metrics
+
+- Monthly Active Users (MAU)
+- Daemon executions per user
+- User retention (30, 60, 90 day)
+- NPS score
+
+### Platform Metrics
+
+- Total daemons created
+- Marketplace transaction volume
+- Average execution time
+- Success rate of executions
+
+### Business Metrics
+
+- MRR/ARR growth
+- Customer Acquisition Cost (CAC)
+- Lifetime Value (LTV)
+- Marketplace take rate
+
+## Risk Analysis
+
+### Technical Risks
+
+- **API Changes:** Providers modify APIs → Mitigation: Abstraction layer, version pinning
+- **Rate Limiting:** Provider throttling → Mitigation: Queue management, user quotas
+- **Security Breach:** Exposed API keys → Mitigation: Encryption, audit logs, insurance
+
+### Business Risks
+
+- **Provider Competition:** OpenAI/Anthropic build similar → Mitigation: Network effects, specialized features
+- **Regulatory:** AI regulation changes → Mitigation: Compliance team, geographic flexibility
+- **Market Timing:** Too early/late → Mitigation: Phased rollout, pivot capability
+
+### Operational Risks
+
+- **Scaling:** Execution environment costs → Mitigation: Efficient resource allocation, tiered pricing
+- **Support:** Complex user issues → Mitigation: Self-service docs, community support
+- **Quality Control:** Malicious daemons → Mitigation: Review process, sandboxing
+
+## Competitive Advantages
+
+1. **Network Effects:** More users → better daemons → more creators → more users
+2. **Switching Costs:** Investment in custom daemons and workflows
+3. **Data Advantage:** Understanding optimal model selection for tasks
+4. **Brand:** "The home for AI automation"
+5. **Ecosystem:** First-mover advantage in daemon marketplace
+
+## Exit Strategies
+
+1. **Acquisition Targets:**
+   - Microsoft (enhance Azure AI)
+   - Google (Cloud AI platform)
+   - Salesforce (automation tools)
+   - Adobe (creative workflows)
+
+2. **IPO Path:**
+   - Reach $100M ARR
+   - Expand internationally
+   - Build enterprise moat
+
+3. **Strategic Merger:**
+   - Combine with complementary platforms
+   - Roll-up automation tool space
+
+## Appendix: Example Daemons
+
+### 1. Blog Content Pipeline
+
+```yaml
+stages:
+  - Research (Perplexity)
+  - Outline (GPT-5)
+  - Writing (Claude)
+  - SEO Optimization (Script)
+  - Image Generation (DALL-E)
+  - Publishing (WordPress API)
+```
+
+### 2. Code Review & Refactor
+
+```yaml
+stages:
+  - Analyze Code (GPT-4)
+  - Security Scan (Snyk API)
+  - Suggest Improvements (Claude)
+  - Apply Changes (Claude Code)
+  - Run Tests (Script)
+  - Create PR (GitHub API)
+```
+
+### 3. Customer Support Triage
+
+```yaml
+stages:
+  - Categorize Ticket (GPT-4)
+  - Sentiment Analysis (Claude)
+  - Knowledge Base Search (Script)
+  - Draft Response (GPT-4)
+  - Escalation Decision (Rules Engine)
+  - Send Response (Zendesk API)
+```
+
+---
+
+_Version 1.0 - Last Updated: [Current Date]_
+_Next Review: [Quarterly]_
