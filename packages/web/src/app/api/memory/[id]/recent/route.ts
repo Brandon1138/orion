@@ -8,6 +8,7 @@ import {
 	applySecurityHeaders,
 	isOriginAllowed,
 	getAllowlist,
+	applyCorsHeaders,
 } from '../../../../../server/security';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 	if (!isOriginAllowed(origin, allowlist)) {
 		return new NextResponse('Origin not allowed', { status: 403, headers });
 	}
+	applyCorsHeaders(headers, origin, allowlist);
 
 	const params = await ctx.params;
 	const p = ParamsSchema.safeParse(params);
@@ -40,4 +42,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 	const orion = getOrion();
 	const items = orion.getRecentMemory(p.data.id, q.data.limit);
 	return NextResponse.json({ items }, { headers });
+}
+
+export async function OPTIONS(req: NextRequest) {
+	const headers = new Headers();
+	applySecurityHeaders(headers);
+	const origin = req.headers.get('origin');
+	const allowlist = getAllowlist();
+	if (!isOriginAllowed(origin, allowlist)) {
+		return new NextResponse('Origin not allowed', { status: 403, headers });
+	}
+	applyCorsHeaders(headers, origin, allowlist, { allowCredentials: true });
+	headers.set('Access-Control-Max-Age', '600');
+	return new NextResponse(null, { status: 204, headers });
 }

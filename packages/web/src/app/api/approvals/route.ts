@@ -10,6 +10,7 @@ import {
 	getAllowlist,
 	getClientSessionKey,
 	rateLimit,
+	applyCorsHeaders,
 } from '../../../server/security';
 
 export async function POST(req: NextRequest) {
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
 	if (!isOriginAllowed(origin, allowlist)) {
 		return new NextResponse('Origin not allowed', { status: 403, headers });
 	}
+	applyCorsHeaders(headers, origin, allowlist);
 
 	const key = `approvals:${getClientSessionKey(req)}`;
 	if (!rateLimit(key, 20)) {
@@ -44,4 +46,17 @@ export async function POST(req: NextRequest) {
 
 	const ok = resolveApproval(parsed.data.approvalId, parsed.data.approve);
 	return NextResponse.json({ ok }, { status: ok ? 200 : 404, headers });
+}
+
+export async function OPTIONS(req: NextRequest) {
+	const headers = new Headers();
+	applySecurityHeaders(headers);
+	const origin = req.headers.get('origin');
+	const allowlist = getAllowlist();
+	if (!isOriginAllowed(origin, allowlist)) {
+		return new NextResponse('Origin not allowed', { status: 403, headers });
+	}
+	applyCorsHeaders(headers, origin, allowlist, { allowCredentials: true });
+	headers.set('Access-Control-Max-Age', '600');
+	return new NextResponse(null, { status: 204, headers });
 }

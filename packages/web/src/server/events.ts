@@ -9,6 +9,7 @@ export type EventPayload =
 			tool: string;
 			risk: 'low' | 'medium' | 'high';
 	  }
+	| { type: 'assistant_token'; sessionId?: string; text: string }
 	| {
 			type: 'tool_call_completed';
 			sessionId?: string;

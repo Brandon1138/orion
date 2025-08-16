@@ -7,26 +7,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Build all packages
 npm run build
+npm run build:web        # Build web package only
+
+# Development servers
+npm run dev              # Start development environment  
+npm run dev:web          # Start web development server
+npm start:web            # Start web production server
 
 # Lint and format code
-npm run lint          # Check for issues
-npm run lint:fix      # Fix auto-fixable issues
-npm run format        # Format with Prettier
-npm run format:check  # Check formatting only
-npm run fix           # Format + lint fix
+npm run lint             # Check for issues across all packages
+npm run lint:fix         # Fix auto-fixable issues
+npm run lint:workspaces  # Check all workspace packages
+npm run format           # Format with Prettier
+npm run format:check     # Check formatting only
+npm run fix              # Format + lint fix combined
+npm run check            # Check format and lint together
 
 # Testing
-npm test              # Run tests with Vitest
-npm run test:e2e      # Run end-to-end tests
-
-# Development
-npm run dev           # Start development environment
-node demo.js          # Run the demo script
+npm test                 # Run tests with Vitest
+npm run test:e2e         # Run end-to-end tests across packages
+# Individual package testing:
+# cd packages/[package-name] && npm test
 
 # Security and maintenance
-npm run audit:security    # Check for security vulnerabilities
-npm run audit:outdated    # Check for outdated packages
-npm run update:check      # Interactive dependency updates
+npm run audit:security       # Check for security vulnerabilities
+npm run audit:outdated       # Check for outdated packages
+npm run update:check         # Interactive dependency updates
+npm run dependency:matrix    # Check workspace compatibility
+
+# Demo and verification
+node demo.js                 # Run Phase 1A verification demo
+node packages/cli/dist/cli.js status  # Check CLI status
 ```
 
 ## Architecture Overview
@@ -41,13 +52,20 @@ Orion is a **daily planning copilot** built with a TypeScript monorepo architect
 
 ### Key Packages
 
+**Core Packages:**
 - `@orion/core` - Main orchestration and conversation loop with OpenAI Agents SDK integration
 - `@orion/planner-llm` - LLM-based task planning with structured outputs (TaskPlan v1 schema)
 - `@orion/task-parser` - Google Tasks API integration with OAuth2 authentication  
+
+**Interface Packages:**
+- `@orion/web` - Next.js web interface with React components and API routes
+- `@orion/cli` - Command-line interface with interactive chat and task commands
+
+**Integration Packages:**
 - `@orion/mcp-client` - Model Context Protocol client for file/shell operations
 - `@orion/command-router` - Command classification and approval workflows
-- `@orion/cli` - Command-line interface with interactive chat and task commands
 - `@orion/calendar-parser` - Calendar integration (Google, Microsoft Graph, .ics)
+- `@orion/codex-helper` - CodexHelper integration package
 
 ### Workflow Patterns
 
@@ -84,22 +102,28 @@ Currently in **Phase 1A** with specific constraints:
 - **Google Tasks integration** - OAuth2 authentication for task reading
 - **Conversational planning** - Multi-turn interviews for task prioritization
 - **Structured outputs** - TaskPlan v1 JSON schema validation
+- **OpenAI Agents SDK** - Agent orchestration with tool handoffs and structured responses
+- **Web Interface** - Next.js application with React components for task management
 
 ## Configuration
 
 Main configuration in `orion.config.json`:
-- **Phase enforcement** - Ensures operations stay within phase limitations
-- **LLM models** - OpenAI GPT-4o primary, Claude 3.5 Sonnet fallback
-- **MCP security** - File system allowlists, command restrictions
-- **Rate limiting** - API call throttling and timeout management
+- **Phase enforcement** - Ensures operations stay within phase limitations (`mvp.phase`)
+- **LLM models** - OpenAI GPT-5-nano primary, Claude 3.5 Sonnet fallback (`agents.plannerModel`)
+- **MCP security** - File system allowlists, command restrictions (`mcp.fsAllow/fsDeny`)
+- **Rate limiting** - API call throttling and timeout management (`mcp.rateLimits`)
+- **Calendar integration** - Google Calendar, Microsoft Graph configuration (`calendars`)
+- **Audit logging** - Structured logging with file output (`audit.path`)
 
 ## Testing Strategy
 
 - **Unit tests** with Vitest for individual package testing
+- **End-to-end tests** with Playwright for web interface (`npm run test:e2e`)
 - **Integration tests** for cross-package communication
 - **Mock-based testing** for external API dependencies (Google Tasks, OpenAI)
 - **Schema validation** for structured outputs (TaskPlan, DayPlan)
 - **CLI testing** with command verification
+- **API route testing** with Supertest for web endpoints
 
 ## Security Considerations
 
@@ -128,11 +152,21 @@ Main configuration in `orion.config.json`:
 
 ## Key Files to Understand
 
-- `packages/orion-core/src/index.ts` - Main orchestration and session management
+**Core Architecture:**
+- `packages/orion-core/src/index.ts` - Main OrionCore class with OpenAI Agents SDK integration
+- `packages/orion-core/src/agent.js` - OpenAI Agents SDK orchestration and tool handoffs
 - `packages/planner-llm/src/index.ts` - Conversational task interviewing logic
-- `packages/task-parser/src/index.ts` - Google Tasks API integration
+- `packages/task-parser/src/index.ts` - Google Tasks API integration with OAuth2
+
+**Web Interface:**
+- `packages/web/src/app/` - Next.js app router with API routes
+- `packages/web/src/components/` - React components for task management UI
+- `packages/web/src/server/` - Backend integration with OrionCore
+
+**Configuration & Entry Points:**
+- `orion.config.json` - Main configuration with phase settings and LLM models
 - `packages/cli/src/index.ts` - Command-line interface and user interaction
-- `orion.config.json` - Main configuration with phase settings
+- `demo.js` - Phase 1A verification and testing script
 - `SPEC.md` - Complete technical specification and requirements
 
 ## Architecture Evolution

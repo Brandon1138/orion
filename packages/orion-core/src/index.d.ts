@@ -6,7 +6,7 @@ import 'dotenv/config';
 import { type MemoryItem } from './memory.js';
 import { type Action, type ApprovalHandler } from './action-engine.js';
 import type { TaskPlan } from '@orion/planner-llm';
-import type { OrionConfig, PlanRequest, PlanResponse, SessionContext } from './types.js';
+import type { ConversationPattern, Message, OrionConfig, PlanRequest, PlanResponse, SessionContext, SessionState } from './types.js';
 export * from './types.js';
 export declare class OrionCore {
     private config;
@@ -26,6 +26,19 @@ export declare class OrionCore {
     private orionAgent;
     private agentContext;
     constructor(config: OrionConfig);
+    /**
+     * Restore a session from persisted storage (web host).
+     * Does not emit audit; intended for process boot or lazy hydration.
+     */
+    restoreSession(session: {
+        sessionId: string;
+        userId: string;
+        state: SessionState;
+        pattern: ConversationPattern;
+        messages: Message[];
+        startTime: Date;
+        preferences?: Record<string, unknown>;
+    }): void;
     /**
      * Allow host (web/CLI) to subscribe to audit events
      */

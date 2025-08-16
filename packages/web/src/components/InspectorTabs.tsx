@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { ToolInspector } from './ToolInspector';
+import { PlanView } from './PlanView';
+import { MemoryView } from './MemoryView';
 
 type TabKey = 'tools' | 'plan' | 'memory';
 
@@ -29,27 +32,9 @@ export function InspectorTabs() {
 				</button>
 			</div>
 			<div className="scrollbar-thin scrollbar-thumb-rounded flex-1 space-y-2 overflow-y-auto p-2">
-				{tab === 'tools' && (
-					<div className="rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
-						<p className="text-xs text-neutral-600 dark:text-neutral-400">
-							Tool timeline will appear here.
-						</p>
-					</div>
-				)}
-				{tab === 'plan' && (
-					<div className="rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
-						<p className="text-xs text-neutral-600 dark:text-neutral-400">
-							Task plan visualization will appear here.
-						</p>
-					</div>
-				)}
-				{tab === 'memory' && (
-					<div className="rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
-						<p className="text-xs text-neutral-600 dark:text-neutral-400">
-							Memory timeline will appear here.
-						</p>
-					</div>
-				)}
+				{tab === 'tools' && <ToolInspector />}
+				{tab === 'plan' && <PlanView />}
+				{tab === 'memory' && <MemoryView />}
 			</div>
 		</div>
 	);

@@ -133,13 +133,17 @@ export class OrionCore {
 			allowlist: config.web?.allowlist ?? ['https://example.com'],
 		});
 		this.intentRouter = new IntentRouter();
-		this.memory = new MemoryStore({ ttlSeconds: 3600, maxItems: 200, snapshotPath: './logs/memory' });
+		this.memory = new MemoryStore({
+			ttlSeconds: 3600,
+			maxItems: 200,
+			snapshotPath: './logs/memory',
+		});
 		this.actionEngine = new ActionEngine(
 			async (tool, args) => this.executeTool(tool, args),
 			async action => this.requestApproval(action),
 			(event, payload) => this.auditLog(event, payload),
 			{
-				guard: async (action) => this.reflectBeforeWrite(action),
+				guard: async action => this.reflectBeforeWrite(action),
 				retry: { maxAttempts: 3, baseDelayMs: 300, jitterMs: 200 },
 			}
 		);
@@ -152,6 +156,32 @@ export class OrionCore {
 		// Initialize OpenAI Agents SDK components (Chunk 3.2)
 		this.orionAgent = createOrionAgent(config);
 		this.agentContext = createOrionContext(config);
+	}
+
+	/**
+	 * Restore a session from persisted storage (web host).
+	 * Does not emit audit; intended for process boot or lazy hydration.
+	 */
+	restoreSession(session: {
+		sessionId: string;
+		userId: string;
+		state: SessionState;
+		pattern: ConversationPattern;
+		messages: Message[];
+		startTime: Date;
+		preferences?: Record<string, unknown>;
+	}): void {
+		const restored: SessionContext = {
+			sessionId: session.sessionId,
+			userId: session.userId,
+			state: session.state,
+			pattern: session.pattern,
+			messages: [...session.messages],
+			events: [],
+			preferences: session.preferences ?? this.config.profile,
+			startTime: session.startTime,
+		};
+		this.sessions.set(session.sessionId, restored);
 	}
 
 	/**
@@ -222,7 +252,11 @@ export class OrionCore {
 		};
 
 		this.sessions.set(sessionId, session);
-		void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'event', data: { type: 'session_start', userId } });
+		void this.memory.remember(sessionId, {
+			ts: new Date().toISOString(),
+			kind: 'event',
+			data: { type: 'session_start', userId },
+		});
 		this.auditLog('session_start', { sessionId, userId });
 
 		return sessionId;
@@ -568,7 +602,11 @@ export class OrionCore {
 				content: userMessage,
 				timestamp: new Date(),
 			});
-			void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'user', content: userMessage } });
+			void this.memory.remember(sessionId, {
+				ts: new Date().toISOString(),
+				kind: 'message',
+				data: { role: 'user', content: userMessage },
+			});
 
 			// Build conversation history for OpenAI
 			const messages = this.buildConversationHistory(session);
@@ -614,7 +652,11 @@ export class OrionCore {
 					content: finalMessage,
 					timestamp: new Date(),
 				});
-				void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content: finalMessage } });
+				void this.memory.remember(sessionId, {
+					ts: new Date().toISOString(),
+					kind: 'message',
+					data: { role: 'assistant', content: finalMessage },
+				});
 
 				this.auditLog('message_processed', {
 					sessionId,
@@ -638,7 +680,11 @@ export class OrionCore {
 					content,
 					timestamp: new Date(),
 				});
-				void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content } });
+				void this.memory.remember(sessionId, {
+					ts: new Date().toISOString(),
+					kind: 'message',
+					data: { role: 'assistant', content },
+				});
 
 				this.auditLog('message_processed', {
 					sessionId,
@@ -762,58 +808,42 @@ export class OrionCore {
 	}
 
 	/**
-	 * Build system instructions for the OpenAI Agent (Task Interviewing Workflow)
+	 * Build system instructions for the OpenAI Agent (General Conversational Assistant)
 	 */
 	private buildSystemInstructions(): string {
-		return `You are Orion, a conversational task planning assistant. Your role is to help users understand and prioritize their tasks through thoughtful interviewing, then provide structured scheduling recommendations.
+		return `You are Orion, a helpful conversational assistant. You can engage in natural conversations, answer questions, and help with a variety of topics.
 
 **Core Capabilities:**
-- Read and analyze tasks from Google Tasks
-- Conduct conversational interviews about task priorities and scheduling
-- Generate structured TaskPlan outputs with priority analysis
-- Access files (read-only) to understand project context
-- Provide intelligent follow-up questions for better planning
+- Engage in natural, helpful conversations
+- Answer questions across a wide range of topics
+- Provide thoughtful explanations and guidance
+- Access files (read-only) for context when needed
+- Maintain context throughout conversations
 
 **Voice & Style:**
-- Curious, helpful colleague who asks thoughtful questions
-- Engage in natural conversation to understand task context
-- Be genuinely interested in helping users clarify their priorities
-- Ask specific, actionable questions rather than generic ones
-
-**Task Interviewing Approach:**
-1. **Start with Understanding**: Ask about task urgency, deadlines, and complexity
-2. **Gather Context**: Understand dependencies, blockers, and related projects
-3. **Explore Scheduling**: Discuss preferred times, duration estimates, and flexibility
-4. **Prioritize Thoughtfully**: Help users understand the "why" behind priorities
-5. **Suggest Scheduling**: Recommend specific time blocks and calendar entries
+- Friendly, helpful, and professional
+- Clear and concise in explanations
+- Curious and engaged in conversation
+- Supportive and encouraging
 
 **Phase 1A Constraints:**
-- READ-ONLY operations only (no task modifications, calendar writes, or shell commands)
-- Focus on understanding and recommending, not executing
-- Generate structured TaskPlan JSON outputs with schema validation
-- Respect user's existing commitments and preferences
+- READ-ONLY operations only (no file writes, shell commands, or external modifications)
+- Focus on conversation and information sharing
+- Maintain user privacy and safety
 
-**Tools Available:**
-- conduct_task_interview: Interview user about their tasks and generate TaskPlan
-- read_tasks: Fetch Google Tasks for analysis
+**Available Tools:**
 - read_file: Access project files for context (read-only)
 - list_directory: Browse project structure
-- search_files: Find relevant files for planning context
+- search_files: Find relevant files when needed
 
-**Interview Guidelines:**
-- Ask follow-up questions to understand task context better
-- Help users think through dependencies and blockers
-- Suggest realistic time estimates based on task complexity
-- Identify scheduling conflicts and suggest alternatives
-- Be specific in your questions (not just "tell me more")
+**Conversation Guidelines:**
+- Listen carefully to user questions and requests
+- Provide helpful, accurate responses
+- Ask clarifying questions when needed
+- Stay focused on being genuinely helpful
+- Respect boundaries and maintain appropriate conversation
 
-When conducting interviews, always:
-- Generate valid TaskPlan JSON with proper schema
-- Include specific, actionable next steps
-- Ask clarifying questions for ambiguous situations
-- Provide calendar suggestions when appropriate
-
-Remember: You're conducting conversational interviews to help users plan their tasks thoughtfully and systematically.`;
+Remember: You're here to have helpful conversations and assist users with their questions and needs.`;
 	}
 
 	/**
@@ -1082,11 +1112,15 @@ Remember: You're conducting conversational interviews to help users plan their t
 			// Build task context
 			const taskContext = await this.buildTaskContext();
 
-				// Conduct interview
+			// Conduct interview
 			const taskPlan = await this.conductTaskInterview(taskContext, userMessage);
-				if (this.agentContext.sessionId) {
-					void this.memory.remember(this.agentContext.sessionId, { ts: new Date().toISOString(), kind: 'note', data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length } });
-				}
+			if (this.agentContext.sessionId) {
+				void this.memory.remember(this.agentContext.sessionId, {
+					ts: new Date().toISOString(),
+					kind: 'note',
+					data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length },
+				});
+			}
 
 			return {
 				success: true,
@@ -1401,9 +1435,16 @@ Remember: You're conducting conversational interviews to help users plan their t
 	 * - Validate args against tool schema when available
 	 * - Enforce Phase 1A read-only policy for disallowed writes
 	 */
-	private async reflectBeforeWrite(action: { tool: string; args: Record<string, unknown>; risk?: 'low' | 'medium' | 'high' }): Promise<{ ok: true } | { ok: false; reason: string }> {
+	private async reflectBeforeWrite(action: {
+		tool: string;
+		args: Record<string, unknown>;
+		risk?: 'low' | 'medium' | 'high';
+	}): Promise<{ ok: true } | { ok: false; reason: string }> {
 		// Enforce read-only in Phase 1A when config enforces phase
-		const isWrite = action.tool.includes('create') || action.tool.includes('update') || action.tool.includes('delete');
+		const isWrite =
+			action.tool.includes('create') ||
+			action.tool.includes('update') ||
+			action.tool.includes('delete');
 		if (this.config.mvp.phase === '1A' && isWrite) {
 			return { ok: false, reason: 'Phase 1A: write operations blocked (dry-run previews only)' };
 		}

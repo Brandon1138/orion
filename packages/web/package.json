@@ -8,18 +8,25 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
-		"test": "vitest"
+		"test": "vitest",
+		"test:e2e": "playwright test"
 	},
 	"dependencies": {
 		"next": "^15.0.0",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
-		"@orion/core": "file:../orion-core"
+		"@orion/core": "file:../orion-core",
+		"react-markdown": "^9.0.1",
+		"remark-gfm": "^4.0.0",
+		"react-virtuoso": "^4.7.10",
+		"drizzle-orm": "^0.33.0",
+		"better-sqlite3": "^9.6.0"
 	},
 	"devDependencies": {
 		"@types/node": "^20.10.0",
 		"@types/react": "^18.2.79",
 		"autoprefixer": "^10.4.19",
+		"@playwright/test": "^1.47.2",
 		"eslint": "^9.32.0",
 		"eslint-config-next": "^15.0.0",
 		"postcss": "^8.4.39",

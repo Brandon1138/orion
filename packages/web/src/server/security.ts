@@ -45,8 +45,8 @@ export function applySecurityHeaders(headers: Headers): void {
 		'Content-Security-Policy',
 		[
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline'",
-			"style-src 'self' 'unsafe-inline'",
+			"script-src 'self'",
+			"style-src 'self'",
 			"img-src 'self' data:",
 			"connect-src 'self'",
 			"font-src 'self' data:",
@@ -109,4 +109,19 @@ export function getAllowlist(): string[] {
 		// ignore
 	}
 	return [];
+}
+
+export function applyCorsHeaders(
+	headers: Headers,
+	origin: string | null | undefined,
+	allowlist: string[],
+	options?: { allowCredentials?: boolean }
+): void {
+	headers.append('Vary', 'Origin');
+	if (isOriginAllowed(origin, allowlist) && origin) {
+		headers.set('Access-Control-Allow-Origin', origin);
+		headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+		headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+		if (options?.allowCredentials) headers.set('Access-Control-Allow-Credentials', 'true');
+	}
 }

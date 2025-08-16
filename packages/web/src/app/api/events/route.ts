@@ -1,24 +1,45 @@
 export const runtime = 'nodejs';
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { subscribe } from '../../../server/events';
-import { applySecurityHeaders, isOriginAllowed, getAllowlist } from '../../../server/security';
+import {
+	applySecurityHeaders,
+	isOriginAllowed,
+	getAllowlist,
+	applyCorsHeaders,
+	rateLimit,
+	getClientSessionKey,
+} from '../../../server/security';
+import { z } from 'zod';
 
 export async function GET(req: NextRequest) {
+	const headers = new Headers();
+	applySecurityHeaders(headers);
+
 	const origin = req.headers.get('origin');
 	const allowlist = getAllowlist();
 	if (!isOriginAllowed(origin, allowlist)) {
-		return new Response('Origin not allowed', { status: 403 });
+		return new NextResponse('Origin not allowed', { status: 403, headers });
+	}
+	applyCorsHeaders(headers, origin, allowlist);
+
+	const key = `sse:${getClientSessionKey(req)}`;
+	if (!rateLimit(key, 60)) {
+		return new NextResponse('Rate limit exceeded', { status: 429, headers });
 	}
 
-	const headers = new Headers();
-	applySecurityHeaders(headers);
+	const QuerySchema = z.object({ sessionId: z.string().min(1).optional() });
+	const parsed = QuerySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+	if (!parsed.success) {
+		return new NextResponse('Invalid query', { status: 400, headers });
+	}
+
+	const sessionId = parsed.data.sessionId || '*';
+
 	headers.set('Content-Type', 'text/event-stream');
 	headers.set('Cache-Control', 'no-cache, no-transform');
 	headers.set('Connection', 'keep-alive');
 	headers.set('X-Accel-Buffering', 'no');
-
-	const sessionId = req.nextUrl.searchParams.get('sessionId') || '*';
 
 	const stream = new ReadableStream({
 		start(controller) {

@@ -74,7 +74,11 @@ export class OrionCore {
             allowlist: config.web?.allowlist ?? ['https://example.com'],
         });
         this.intentRouter = new IntentRouter();
-        this.memory = new MemoryStore({ ttlSeconds: 3600, maxItems: 200, snapshotPath: './logs/memory' });
+        this.memory = new MemoryStore({
+            ttlSeconds: 3600,
+            maxItems: 200,
+            snapshotPath: './logs/memory',
+        });
         this.actionEngine = new ActionEngine(async (tool, args) => this.executeTool(tool, args), async (action) => this.requestApproval(action), (event, payload) => this.auditLog(event, payload), {
             guard: async (action) => this.reflectBeforeWrite(action),
             retry: { maxAttempts: 3, baseDelayMs: 300, jitterMs: 200 },
@@ -86,6 +90,23 @@ export class OrionCore {
         // Initialize OpenAI Agents SDK components (Chunk 3.2)
         this.orionAgent = createOrionAgent(config);
         this.agentContext = createOrionContext(config);
+    }
+    /**
+     * Restore a session from persisted storage (web host).
+     * Does not emit audit; intended for process boot or lazy hydration.
+     */
+    restoreSession(session) {
+        const restored = {
+            sessionId: session.sessionId,
+            userId: session.userId,
+            state: session.state,
+            pattern: session.pattern,
+            messages: [...session.messages],
+            events: [],
+            preferences: session.preferences ?? this.config.profile,
+            startTime: session.startTime,
+        };
+        this.sessions.set(session.sessionId, restored);
     }
     /**
      * Allow host (web/CLI) to subscribe to audit events
@@ -149,7 +170,11 @@ export class OrionCore {
             startTime: new Date(),
         };
         this.sessions.set(sessionId, session);
-        void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'event', data: { type: 'session_start', userId } });
+        void this.memory.remember(sessionId, {
+            ts: new Date().toISOString(),
+            kind: 'event',
+            data: { type: 'session_start', userId },
+        });
         this.auditLog('session_start', { sessionId, userId });
         return sessionId;
     }
@@ -441,7 +466,11 @@ export class OrionCore {
                 content: userMessage,
                 timestamp: new Date(),
             });
-            void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'user', content: userMessage } });
+            void this.memory.remember(sessionId, {
+                ts: new Date().toISOString(),
+                kind: 'message',
+                data: { role: 'user', content: userMessage },
+            });
             // Build conversation history for OpenAI
             const messages = this.buildConversationHistory(session);
             // Use OpenAI with function calling for tool integration
@@ -477,7 +506,11 @@ export class OrionCore {
                     content: finalMessage,
                     timestamp: new Date(),
                 });
-                void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content: finalMessage } });
+                void this.memory.remember(sessionId, {
+                    ts: new Date().toISOString(),
+                    kind: 'message',
+                    data: { role: 'assistant', content: finalMessage },
+                });
                 this.auditLog('message_processed', {
                     sessionId,
                     pattern: session.pattern,
@@ -497,7 +530,11 @@ export class OrionCore {
                     content,
                     timestamp: new Date(),
                 });
-                void this.memory.remember(sessionId, { ts: new Date().toISOString(), kind: 'message', data: { role: 'assistant', content } });
+                void this.memory.remember(sessionId, {
+                    ts: new Date().toISOString(),
+                    kind: 'message',
+                    data: { role: 'assistant', content },
+                });
                 this.auditLog('message_processed', {
                     sessionId,
                     pattern: session.pattern,
@@ -869,7 +906,7 @@ Remember: You're conducting conversational interviews to help users plan their t
                     default:
                         result = { success: false, error: `Unknown tool: ${toolCall.function.name}` };
                 }
-                // Emit completion event (success path)
+                // Emit completion event (assume ok=true on successful execution path)
                 this.auditLog('completed', {
                     tool: toolName,
                     durationMs: Date.now() - start,
@@ -912,7 +949,11 @@ Remember: You're conducting conversational interviews to help users plan their t
             // Conduct interview
             const taskPlan = await this.conductTaskInterview(taskContext, userMessage);
             if (this.agentContext.sessionId) {
-                void this.memory.remember(this.agentContext.sessionId, { ts: new Date().toISOString(), kind: 'note', data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length } });
+                void this.memory.remember(this.agentContext.sessionId, {
+                    ts: new Date().toISOString(),
+                    kind: 'note',
+                    data: { type: 'task_plan_generated', tasksCount: taskContext.tasks.length },
+                });
             }
             return {
                 success: true,
@@ -1195,7 +1236,9 @@ Remember: You're conducting conversational interviews to help users plan their t
      */
     async reflectBeforeWrite(action) {
         // Enforce read-only in Phase 1A when config enforces phase
-        const isWrite = action.tool.includes('create') || action.tool.includes('update') || action.tool.includes('delete');
+        const isWrite = action.tool.includes('create') ||
+            action.tool.includes('update') ||
+            action.tool.includes('delete');
         if (this.config.mvp.phase === '1A' && isWrite) {
             return { ok: false, reason: 'Phase 1A: write operations blocked (dry-run previews only)' };
         }

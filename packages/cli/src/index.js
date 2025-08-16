@@ -330,11 +330,15 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             console.error(chalk.red('❌ Orion not initialized'));
             return;
         }
+        // Normalize commander option names (kebab-case and camelCase)
+        const dryRun = Boolean(options?.['dry-run'] ?? options?.dryRun);
+        const approveLow = Boolean(options?.['approve-low'] ?? options?.approveLow);
+        const noPrompt = Boolean(options?.['no-prompt'] ?? options?.noPrompt);
         if (options?.message) {
             // One-shot, non-interactive mode
             try {
-                if (options['dry-run']) {
-                    await this.previewAndMaybeExecute(options.message, options['approve-low'] === true, options['no-prompt'] === true);
+                if (dryRun) {
+                    await this.previewAndMaybeExecute(options.message, approveLow, noPrompt);
                     return;
                 }
                 const response = await this.orion.processMessage(this.sessionId, options.message);
@@ -366,8 +370,8 @@ Generates a structured TaskPlan with priority analysis and calendar suggestions.
             }
             if (typeof message === 'string') {
                 try {
-                    if (options?.['dry-run']) {
-                        await this.previewAndMaybeExecute(message, options['approve-low'] === true, options['no-prompt'] === true);
+                    if (dryRun) {
+                        await this.previewAndMaybeExecute(message, approveLow, noPrompt);
                         console.log('');
                     }
                     else {
